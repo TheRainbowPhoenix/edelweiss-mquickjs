@@ -40,6 +40,7 @@ u32 = lambda at: struct.unpack_from(">I", payload, at)[0]
 u16 = lambda at: struct.unpack_from(">H", payload, at)[0]
 section_base, section_count = u32(32), u16(48)
 imports, defined = set(), set()
+stdlib_table_vaddr = None
 for i in range(section_count):
     sec = section_base + i * 40
     if u32(sec + 4) != 2:
@@ -48,6 +49,8 @@ for i in range(section_count):
     for at in range(u32(sec + 16), u32(sec + 16) + u32(sec + 20), 16):
         name_at = u32(strings + 16) + u32(at)
         name = payload[name_at:payload.index(b"\0", name_at)].decode()
+        if name == "_js_stdlib_table":
+            stdlib_table_vaddr = u32(at + 4)
         if u16(at + 14) == 0xfff1 and u32(at + 4) == 0:
             imports.add(name)
         elif u16(at + 14):
@@ -82,3 +85,25 @@ for i in range(section_count):
     found.append(i)
 assert len(found) == 1, "exactly one Toybox manifest required"
 print("PASS: qjs.edl has valid non-loaded Toybox CMD1 manifest (js, qjs)")
+
+# The host -m32 builder packs ROM strings in little-endian 32-bit words.
+# SH3EB must instead store their actual byte order: 'null', not 'llun'.
+assert stdlib_table_vaddr is not None, "generated js_stdlib_table missing"
+pht_off, pht_size, pht_count = u32(28), u16(42), u16(44)
+table_fileoff = None
+for n in range(pht_count):
+    ph = pht_off + n * pht_size
+    if u32(ph) != 1:  # PT_LOAD
+        continue
+    offset, vaddr, length = u32(ph + 4), u32(ph + 8), u32(ph + 16)
+    if vaddr <= stdlib_table_vaddr and stdlib_table_vaddr + 20 <= vaddr + length:
+        table_fileoff = offset + stdlib_table_vaddr - vaddr
+        break
+assert table_fileoff is not None, "ROM stdlib symbol is not loadable"
+assert payload[table_fileoff + 4:table_fileoff + 8] == b"null", (
+    "wrong ROM atom byte order: expected literal 'null' (SH big endian)"
+)
+assert payload[table_fileoff + 16:table_fileoff + 20] == b"fals", (
+    "wrong ROM atom byte order: expected literal 'fals'"
+)
+print("PASS: big-endian ROM atom bytes validated in compiled SH ELF")
