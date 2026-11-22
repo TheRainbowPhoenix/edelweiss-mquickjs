@@ -105,6 +105,15 @@ foreach(LOCALE IN ITEMS ja cn)
   add_custom_target(qjs_payload_${LOCALE} ALL
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:qjs>"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/main.edl"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/DEMO.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/DEMO.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/ARGS.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/ARGS.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/SCRIPTS.TXT"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/SCRIPTS.TXT"
     DEPENDS embedded_bootstrap_package_${LOCALE} qjs VERBATIM)
 endforeach()
 execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${edelweiss_SOURCE_DIR}"
