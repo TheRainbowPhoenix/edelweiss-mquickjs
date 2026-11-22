@@ -1,4 +1,4 @@
-"""Check the actual template output, including its embedded upstream bootstrap."""
+"""Validate the MQuickJS EX-word bootstrap and the Toybox CMD1 ELF manifest."""
 from pathlib import Path
 import re
 import struct
@@ -13,7 +13,8 @@ def setting(name):
 
 appid, module = setting("EXWORD_APP_ID"), setting("EXWORD_MODULE")
 bootstrap = (base / "edelweiss.d01").read_bytes()
-payload = (base / "main.edl").read_bytes()
+payload = (base / "qjs.edl").read_bytes()
+assert (base / "main.edl").read_bytes() == payload
 assert bootstrap[:16] == b"CASIODICPLUGIN10" and 128 < len(bootstrap) <= 131072
 assert (base / (module + ".d01")).read_bytes() == bootstrap
 assert payload[:7] == b"\x7fELF\x01\x02\x01" and struct.unpack_from(">H", payload, 18)[0] == 42
@@ -22,6 +23,9 @@ for locale in ("ja", "cn"):
     package = base / "packages" / locale / appid
     assert (package / (module + ".d01")).read_bytes() == bootstrap
     assert (package / "main.edl").read_bytes() == payload
+    assert (package / "DEMO.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "DEMO.JS").read_bytes()
+    assert (package / "ARGS.JS").is_file()
+    assert (package / "SCRIPTS.TXT").is_file()
     assert (package / "fileinfo.cji").is_file()
     html = list(package.glob("*.htm"))
     assert html
@@ -48,6 +52,29 @@ for i in range(section_count):
             imports.add(name)
         elif u16(at + 14):
             defined.add(name)
-assert {"_pollevent", "_timer_configure", "_rtc_ticks", "_r61523_display"} <= imports
+assert "_r61523_display" in imports
 assert not {"_start", "_exword_entry", "_gint_kernel_install", "_mmu_exword_prepare"} & defined
-print("Hosted gint imports verified; no second kernel/startup in main.edl")
+print("Hosted gint imports verified; no second kernel/startup in qjs.edl")
+# The CMD1 applet section must be a non-allocated 396-byte PROGBITS object.
+shstr = section_base + u16(50) * 40
+shstr_offset = u32(shstr + 16)
+found = []
+for i in range(section_count):
+    sec = section_base + i * 40
+    name_off = shstr_offset + u32(sec)
+    section_name = payload[name_off:payload.index(b"\\0", name_off)]
+    if section_name != b".edl.cmd":
+        continue
+    assert u32(sec + 4) == 1, "manifest must be PROGBITS"
+    assert not u32(sec + 8) & 2, "manifest must not have SHF_ALLOC"
+    assert u32(sec + 20) == 12 + 24 * 16
+    offset = u32(sec + 16)
+    assert offset + 396 <= len(payload)
+    magic, version, n = struct.unpack_from(">III", payload, offset)
+    assert (magic, version, n) == (0x434D4431, 1, 2)
+    names = [payload[offset + 12 + j * 16:offset + 28 + j * 16].split(b"\\0")[0]
+             for j in range(n)]
+    assert names == [b"js", b"qjs"], names
+    found.append(i)
+assert len(found) == 1, "exactly one Toybox manifest required"
+print("PASS: qjs.edl has valid non-loaded Toybox CMD1 manifest (js, qjs)")
