@@ -57,7 +57,7 @@ def prepare(src: pathlib.Path, dst: pathlib.Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(text)
 
-_HEX_WORD = re.compile(r"^(\\s*)0x([0-9a-fA-F]{8})(,\\s*)$")
+_HEX_WORD = re.compile(r"^(\s*)0x([0-9a-fA-F]{8})(,\s*)$")
 
 
 def big_endian_rom(source: str) -> str:
