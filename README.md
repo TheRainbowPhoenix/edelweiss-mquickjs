@@ -28,19 +28,21 @@ identical payload renamed to `main.edl`, as required by its bootstrap. When
 run directly, the interpreter opens a full filesystem browser starting beside
 its `main.edl` payload.
 
-**Native EX-word file browser:** Standalone QuickJS now uses the same read-only
-native directory enumeration as [EXWord-Explorer](https://github.com/TheRainbowPhoenix/EXWord-Explorer)
-via Edelweiss's world-switched `os_call`. It displays folders and `.JS`/`.js`
-files on drv0, sys0, data0-data2, and crd0-crd2. UP/DOWN moves, EXE enters
-folders or runs a file, EXIT goes back through parents to the volume list,
-and MENU quits. `SCRIPTS.TXT` is no longer needed (older install packages
-may still contain the unused index).
+**Native EX-word file browser:** The standalone QJSJS bootstrap now uses a
+new **read-only, one-world-switch** directory listing and file-size service
+in the Edelweiss resident D01. Unlike the previous experimental build, it
+does not carry a native `findfirst` handle across world switches. This host
+extension is on [Edelweiss PR #3](https://github.com/TheRainbowPhoenix/Edelweiss/pull/3),
+included by this QuickJS port. **Update both `qjs.d01` and `main.edl`**;
+mixing old and new versions will not provide the directory-list service.
+The picker navigates mounted EX-word volumes, directories and `.JS` files.
 
-**Exact-size reads:** The Edelweiss read callback requires each requested byte
-to be in bounds. The launcher now asks the native FS for the file size first
-and reads exactly that many bytes, up to the 96 KiB source limit.
-Toybox CLI runs also try the actual file casing from the parent directory,
-so `js DEMO.JS` works when the stored filename is `demo.js`.
+**Troubleshooting:** Before each operation, MicroQuickJS displays an
+initialization stage on screen: browser scan, file read, VM allocation,
+context initialization, source parsing, and JavaScript execution.
+If the display stays on one stage, photograph or quote that exact line.
+The payload has not been verified on physical hardware. Try the tiny
+`SMOKE.JS` (one-shot graphics) before the interactive `DEMO.JS`.
 
 ## JavaScript graphics API
 
