@@ -4,6 +4,7 @@
  */
 #include "edl.h"
 #include "toybox_abi.h"
+#include "browser.h"
 #include "mquickjs.h"
 #include <stdlib.h>
 #include <stdint.h>
@@ -209,155 +210,24 @@ static JSValue js_gint_rgb(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 }
 #include "mqjs_stdlib.h"
 
-static int has_js_extension(const char *s)
-{
-    size_t n=strlen(s);
-    if(n<4)return 0;
-    char a=s[n-3],b=s[n-2],c=s[n-1];
-    return a=='.' && (b=='j'||b=='J') && (c=='s'||c=='S');
-}
-static int candidate(const char *name)
-{
-    if(!name || !has_js_extension(name) || strlen(name)>=NAME_MAX_LOCAL)
-        return 0;
-    for(unsigned i=0;i<filename_count;i++)
-        if(!strcmp(filenames[i],name))return 0;
-    if(filename_count==MAX_FILES)return 0;
-    strcpy(filenames[filename_count++],name);
-    return 1;
-}
-static int sibling_path(const char *name,char path[EDL_PATH_MAX])
-{
-    if(!host || !host->image_path)return -1;
-    const char *sep=strrchr(host->image_path,'\\');
-    if(!sep)return -1;
-    size_t base=(size_t)(sep-host->image_path)+1;
-    size_t len=strlen(name);
-    if(base+len>=EDL_PATH_MAX)return -1;
-    memcpy(path,host->image_path,base);
-    memcpy(path+base,name,len+1);
-    return 0;
-}
-static int resolve_script(const char *name,char path[EDL_PATH_MAX])
-{
-    if(!name || !*name)return -1;
-    if(shell && shell->resolve_path)
-        return shell->resolve_path(name,path);
-    if(name[0]=='/' || name[0]=='\\') {
-        size_t len=strlen(name);
-        if(len>=EDL_PATH_MAX)return -1;
-        /* Standardize absolute /drv0/NAME.JS to native UNC. */
-        size_t dst=0;
-        if(name[0]=='/' && name[1]!='/'){path[dst++]='\\';path[dst++]='\\';name++;}
-        else if(name[0]=='/' && name[1]=='/') {path[dst++]='\\';path[dst++]='\\';name+=2;}
-        for(;*name && dst+1<EDL_PATH_MAX;name++)
-            path[dst++]=*name=='/'?'\\':*name;
-        path[dst]=0;
-        return *name?-1:0;
-    }
-    return sibling_path(name,path);
-}
-static void standalone_candidates(void)
-{
-    /* Edelweiss does not enumerate arbitrary storage files. SCRIPTS.TXT
-       can list siblings or full /drv0/ and /crd0/ script paths. */
-    char path[EDL_PATH_MAX],buf[2049];
-    if(sibling_path("SCRIPTS.TXT",path))return;
-    int n=host->read(path,0,buf,2048);
-    if(n>0 && n<=2048) {
-        buf[n]=0;
-        char *p=buf;
-        while(*p) {
-            char *end=p;
-            while(*end && *end!='\r' && *end!='\n')end++;
-            char saved=*end;*end=0;
-            candidate(p);
-            if(!saved)break;
-            p=end+1;
-            while(*p=='\r' || *p=='\n')p++;
-        }
-    }
-    /* Convenient defaults if the index has not been created. */
-    const char *defaults[]={"MAIN.JS","SCRIPT.JS","DEMO.JS"};
-    for(unsigned i=0;i<sizeof defaults/sizeof defaults[0];i++){
-        if(sibling_path(defaults[i],path))continue;
-        char byte;
-        if(host->read(path,0,&byte,1)>0)candidate(defaults[i]);
-    }
-}
-static void shell_candidates(void)
-{
-    if(!shell || !shell->list_dir)return;
-    struct shell_dirent entries[8];
-    int total=shell->list_dir(shell->cwd,0,entries,8);
-    if(total<=0)return;
-    for(unsigned first=0;first<(unsigned)total;first+=8){
-        if(shell->list_dir(shell->cwd,first,entries,8)<0)break;
-        for(unsigned i=0;i<8 && first+i<(unsigned)total;i++)
-            if(!entries[i].directory)candidate(entries[i].name);
-    }
-}
-static int choose_file(char out[EDL_PATH_MAX])
-{
-    filename_count=0;
-    if(shell)shell_candidates();
-    else standalone_candidates();
-    if(!host || !host->rect || !host->text || !host->present || !host->wait)
-        return -1;
-    unsigned selected=0;
-    for(;;){
-        host->rect(0,0,(int)host->width,(int)host->height,PAPER);
-        host->text(12,12,INK,"MicroQuickJS - select a .JS script");
-        host->text(12,30,INK,"UP/DOWN: move   EXE: run   EXIT: close");
-        if(filename_count) {
-            char shown[65];
-            const char *p=filenames[selected];
-            size_t len=strlen(p);
-            if(len>60)p+=len-60;
-            strcpy(shown,p);
-            host->text(12,46,INK,shown);
-        }
-        if(!filename_count)host->text(12,64,INK,"No scripts found (see SCRIPTS.TXT).");
-        unsigned first=selected>8?selected-8:0;
-        for(unsigned i=first;i<filename_count && i<first+10;i++){
-            int y=64+(int)(i-first)*21;
-            if(i==selected)host->rect(8,y-3,(int)host->width-16,19,HILITE);
-            const char *label=filenames[i];
-            const char *slash=strrchr(label,'/');
-            const char *backslash=strrchr(label,'\\');
-            if(slash && (!backslash || slash>backslash))label=slash+1;
-            else if(backslash)label=backslash+1;
-            host->text(16,y,i==selected?PAPER:INK,label);
-        }
-        host->present();
-        struct edl_event e={0};
-        if(host->wait(&e))return -1;
-        if(e.key==EDL_BACK || e.key==EDL_HOME)return 0;
-        if(e.key==EDL_UP && selected>0)selected--;
-        if(e.key==EDL_DOWN && selected+1<filename_count)selected++;
-        if(e.key==EDL_OK && filename_count)
-            return resolve_script(filenames[selected],out)?-1:1;
-    }
-}
+/* Edelweiss read() is EXACT-size and fails on requests past EOF. */
 static int read_source(const char *path,char **out,size_t *length)
 {
-    char *buf=malloc(JS_FILE_MAX+1);
+    int size=qjs_script_size(host,shell,path);
+    if(size<0)return -1;
+    if((unsigned)size>JS_FILE_MAX)return -2;
+    char *buf=malloc((size_t)size+1);
     if(!buf)return -1;
-    size_t at=0;
-    while(at<JS_FILE_MAX){
-        unsigned take=512;
-        if(take>JS_FILE_MAX-at)take=(unsigned)(JS_FILE_MAX-at);
-        int n=host->read(path,(uint32_t)at,buf+at,take);
-        if(n<0 || (unsigned)n>take){free(buf);return -1;}
-        if(!n)break;
-        at+=(unsigned)n;
+    unsigned at=0;
+    while(at<(unsigned)size) {
+        unsigned take=(unsigned)size-at;
+        if(take>256)take=256;
+        if(host->read(path,at,buf+at,take)!=(int)take) {
+            free(buf);return -1;
+        }
+        at+=take;
     }
-    if(at==JS_FILE_MAX){
-        char extra;
-        if(host->read(path,(uint32_t)at,&extra,1)>0){free(buf);return -2;}
-    }
-    buf[at]=0;
-    *out=buf;*length=at;
+    buf[size]=0;*out=buf;*length=(size_t)size;
     return 0;
 }
 int main(void)
@@ -365,11 +235,12 @@ int main(void)
     if(!host || !host->read)return -1;
     char path[EDL_PATH_MAX]={0};
     if(shell && shell->argc>=2){
-        if(resolve_script(shell->argv[1],path)){
+        if(!shell->resolve_path || shell->resolve_path(shell->argv[1],path)){
             print_line("js: invalid script path");return 2;
         }
+        qjs_correct_shell_filename(shell,path);
     } else {
-        int selected=choose_file(path);
+        int selected=qjs_choose_script(host,shell,path);
         if(selected<=0)return selected<0?2:0;
     }
     /* After a picker there is no terminal, so show an empty log screen. */
@@ -380,6 +251,11 @@ int main(void)
     int rc=read_source(path,&source,&len);
     if(rc){
         print_line(rc==-2?"js: source exceeds 96 KiB":"js: cannot read script");
+        print_line(path);
+        if(!shell && host->wait) {
+            struct edl_event key={0};
+            host->wait(&key); /* Keep error visible on standalone. */
+        }
         return 2;
     }
     void *memory=malloc(VM_BYTES);
