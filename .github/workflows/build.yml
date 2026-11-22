@@ -7,7 +7,7 @@ on:
     inputs:
       edelweiss_ref:
         description: Edelweiss branch, tag or commit
-        default: edelweiss
+        default: feature/edl-native-dir-scan
         required: true
 permissions:
   contents: read
@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: TheRainbowPhoenix/Edelweiss
-          ref: ${{ inputs.edelweiss_ref || 'edelweiss' }}
+          ref: ${{ inputs.edelweiss_ref || 'feature/edl-native-dir-scan' }}
           path: dependencies/edelweiss
       - uses: actions/checkout@v4
         with:
