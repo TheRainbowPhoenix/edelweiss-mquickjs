@@ -69,6 +69,7 @@ add_custom_target(qjs_codegen DEPENDS "${JS_STDLIB_HEADER}" "${JS_ATOM_HEADER}")
 
 add_gint_edl(qjs
   src/main.c
+  src/browser.c
   "${mquickjs_SOURCE_DIR}/mquickjs.c"
   "${mquickjs_SOURCE_DIR}/dtoa.c"
   "${mquickjs_SOURCE_DIR}/libm.c"
