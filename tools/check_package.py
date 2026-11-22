@@ -57,12 +57,16 @@ assert not {"_start", "_exword_entry", "_gint_kernel_install", "_mmu_exword_prep
 print("Hosted gint imports verified; no second kernel/startup in qjs.edl")
 # The CMD1 applet section must be a non-allocated 396-byte PROGBITS object.
 shstr = section_base + u16(50) * 40
-shstr_offset = u32(shstr + 16)
+shstr_offset, shstr_len = u32(shstr + 16), u32(shstr + 20)
+assert shstr_offset + shstr_len <= len(payload)
+names_blob = payload[shstr_offset:shstr_offset + shstr_len]
 found = []
 for i in range(section_count):
     sec = section_base + i * 40
-    name_off = shstr_offset + u32(sec)
-    section_name = payload[name_off:payload.index(b"\\0", name_off)]
+    name_off = u32(sec)
+    if name_off >= len(names_blob):
+        continue
+    section_name = names_blob[name_off:].split(b"\\0", 1)[0]
     if section_name != b".edl.cmd":
         continue
     assert u32(sec + 4) == 1, "manifest must be PROGBITS"
