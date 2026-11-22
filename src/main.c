@@ -13,7 +13,7 @@
 #define VM_BYTES (160u * 1024u)
 #define JS_FILE_MAX (96u * 1024u)
 #define MAX_FILES 64
-#define NAME_MAX_LOCAL 13
+#define NAME_MAX_LOCAL EDL_PATH_MAX
 #define INK 0x0841
 #define PAPER 0xffff
 #define HILITE 0x2273
@@ -259,8 +259,8 @@ static int resolve_script(const char *name,char path[EDL_PATH_MAX])
 }
 static void standalone_candidates(void)
 {
-    /* The base EDL ABI enumerates only other .edl applications.
-       A plain text SCRIPTS.TXT beside main.edl provides the script index. */
+    /* Edelweiss does not enumerate arbitrary storage files. SCRIPTS.TXT
+       can list siblings or full /drv0/ and /crd0/ script paths. */
     char path[EDL_PATH_MAX],buf[2049];
     if(sibling_path("SCRIPTS.TXT",path))return;
     int n=host->read(path,0,buf,2048);
@@ -309,12 +309,25 @@ static int choose_file(char out[EDL_PATH_MAX])
         host->rect(0,0,(int)host->width,(int)host->height,PAPER);
         host->text(12,12,INK,"MicroQuickJS - select a .JS script");
         host->text(12,30,INK,"UP/DOWN: move   EXE: run   EXIT: close");
+        if(filename_count) {
+            char shown[65];
+            const char *p=filenames[selected];
+            size_t len=strlen(p);
+            if(len>60)p+=len-60;
+            strcpy(shown,p);
+            host->text(12,46,INK,shown);
+        }
         if(!filename_count)host->text(12,64,INK,"No scripts found (see SCRIPTS.TXT).");
         unsigned first=selected>8?selected-8:0;
         for(unsigned i=first;i<filename_count && i<first+10;i++){
             int y=64+(int)(i-first)*21;
             if(i==selected)host->rect(8,y-3,(int)host->width-16,19,HILITE);
-            host->text(16,y,i==selected?PAPER:INK,filenames[i]);
+            const char *label=filenames[i];
+            const char *slash=strrchr(label,'/');
+            const char *backslash=strrchr(label,'\\');
+            if(slash && (!backslash || slash>backslash))label=slash+1;
+            else if(backslash)label=backslash+1;
+            host->text(16,y,i==selected?PAPER:INK,label);
         }
         host->present();
         struct edl_event e={0};
