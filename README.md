@@ -30,10 +30,12 @@ run directly, the interpreter presents a small list of scripts.
 **Standalone directory-index limitation:** Edelweiss ABI v1 enumerates
 `.edl` payloads, not arbitrary storage files. Unlike Toybox, it has no
 directory-enumeration callback. Until that host capability is extended, the
-standalone file picker reads `SCRIPTS.TXT` adjacent to `main.edl` (one 8.3
-`.JS` filename per line). It also probes `MAIN.JS`, `SCRIPT.JS` and
-`DEMO.JS` as convenience fallbacks. The package includes a sample index.
-Scripts outside the add-in can be launched from Toybox by path.
+standalone file picker reads `SCRIPTS.TXT` adjacent to `main.edl` (one
+`.JS` entry per line). Entries can be local 8.3 names or absolute storage paths
+such as `/drv0/SCRIPTS/HELLO.JS` or `/crd0/CASIO/JS/APP.JS`. It also probes
+`MAIN.JS`, `SCRIPT.JS` and `DEMO.JS` as convenience fallbacks. The package
+includes a sample index. This is **indexed browsing**, not automatic full-disk
+scanning; Toybox can automatically browse the current directory.
 
 ## JavaScript graphics API
 
