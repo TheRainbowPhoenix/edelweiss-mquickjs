@@ -113,6 +113,12 @@ foreach(LOCALE IN ITEMS ja cn)
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/ARGS.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/ARGS.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/HELLO.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/HELLO.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/SMOKE.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/SMOKE.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/SCRIPTS.TXT"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/SCRIPTS.TXT"
     DEPENDS embedded_bootstrap_package_${LOCALE} qjs VERBATIM)
