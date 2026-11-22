@@ -6,6 +6,7 @@ Date/console clock integrations. Supply a tiny object of screen/input bindings.
 Generate 32-bit atoms and stdlib for SH-4 even on a 64-bit host compiler.
 """
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -56,11 +57,61 @@ def prepare(src: pathlib.Path, dst: pathlib.Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(text)
 
+_HEX_WORD = re.compile(r"^(\\s*)0x([0-9a-fA-F]{8})(,\\s*)$")
+
+
+def big_endian_rom(source: str) -> str:
+    """Convert host-generated 32-bit ROM data into SH3EB/SH4 big-endian.
+
+    The -m32 builder runs on a little-endian host. Its 32-bit word output
+    includes packed UTF-8 bytes and IEEE754 float64 halves. Compiling those
+    words *unchanged* for big-endian SH reverses every four characters
+    ('null' -> 'llun') and reverses each double's 32-bit halves. The JS atom
+    lookup uses these strings while parsing: corrupt tables can crash the VM.
+
+    Numeric JSValue words and ROM relocations must NOT be byteswapped.
+    """
+    lines = source.splitlines(keepends=True)
+    begins = [i for i, line in enumerate(lines) if line.strip() == "/* atom_table */"]
+    ends = [i for i, line in enumerate(lines)
+            if line.strip().startswith("/* sorted atom table (offset=")]
+    if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
+        raise ValueError("unexpected MQuickJS ROM atom layout")
+    words = 0
+    for i in range(begins[0] + 1, ends[0]):
+        match = _HEX_WORD.fullmatch(lines[i])
+        if match is None:
+            continue
+        value = int(match[2], 16)
+        # The builder packs source bytes into 32-bit little-endian words.
+        swapped = int.from_bytes(value.to_bytes(4, "little"), "big")
+        lines[i] = f"{match[1]}0x{swapped:08x}{match[3]}"
+        words += 1
+    floats = 0
+    for i, line in enumerate(lines):
+        if "/* float64 (offset=" not in line:
+            continue
+        if "JS_MB_HEADER_DEF(JS_MTAG_FLOAT64)" not in lines[i + 1]:
+            raise ValueError("unexpected MQuickJS float64 ROM layout")
+        if not _HEX_WORD.fullmatch(lines[i + 2]) or not _HEX_WORD.fullmatch(lines[i + 3]):
+            raise ValueError("unexpected MQuickJS float64 payload layout")
+        # C stores the 64-bit IEEE value high-word first on a BE target.
+        lines[i + 2], lines[i + 3] = lines[i + 3], lines[i + 2]
+        floats += 1
+    if words < 200 or floats < 1:
+        raise ValueError(f"incomplete ROM conversion: {words} atoms, {floats} floats")
+    return "".join(lines)
+
+
 def generate(executable: str, header: pathlib.Path, atoms: pathlib.Path) -> None:
     with atoms.open("wb") as output:
         subprocess.run([executable, "-a", "-m32"], check=True, stdout=output)
-    with header.open("wb") as output:
-        subprocess.run([executable, "-m32"], check=True, stdout=output)
+    # The EX-word toolchain is sh3eb-elf: always emit target-endian ROM.
+    raw = subprocess.run([executable, "-m32"], check=True, stdout=subprocess.PIPE).stdout
+    text = raw.decode("utf-8")
+    if sys.byteorder == "little":
+        text = big_endian_rom(text)
+    header.write_text(text)
     assert header.stat().st_size > 100 and atoms.stat().st_size > 100
 
 if __name__ == "__main__":
