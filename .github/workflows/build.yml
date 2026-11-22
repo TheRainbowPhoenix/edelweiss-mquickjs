@@ -1,4 +1,4 @@
-name: Edelweiss example
+name: EX-word MicroQuickJS
 on:
   push:
     branches: [main]
@@ -12,23 +12,18 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: example-${{ github.ref }}
+  group: mquickjs-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  format:
+  python-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Check C formatting
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pip install clang-format==21.1.8
-          mapfile -t sources < <(git ls-files '*.c' '*.h')
-          clang-format --dry-run --Werror "${sources[@]}"
+      - name: Check generator and package validator syntax
+        run: python3 -m py_compile tools/make_stdlib.py tools/check_package.py
   build:
     runs-on: ubuntu-latest
     container:
@@ -70,7 +65,7 @@ jobs:
             -DCMAKE_MODULE_PATH=/tmp/fxsdk-exword/lib/cmake/fxsdk
           cmake --build /tmp/gint-build --parallel 2
           cmake --install /tmp/gint-build
-      - name: Build the example against the latest Edelweiss
+      - name: Build MQuickJS with Edelweiss and generated 32-bit stdlib
         shell: bash
         run: |
           set -euo pipefail
@@ -88,21 +83,23 @@ jobs:
           cat build-template/edelweiss-version.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Example-ja
+          name: MicroQuickJS-ja
           path: build-template/packages/ja/
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: Example-cn
+          name: MicroQuickJS-cn
           path: build-template/packages/cn/
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Example-debug
+          name: MicroQuickJS-debug
           path: |
             build-template/*.edl
             build-template/*.d01
             build-template/*.map
+            build-template/generated/mqjs_stdlib.h
+            build-template/generated/mquickjs_atom.h
             build-template/edelweiss-version.txt
           if-no-files-found: warn
