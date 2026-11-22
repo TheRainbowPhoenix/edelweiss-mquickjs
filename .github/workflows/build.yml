@@ -65,6 +65,14 @@ jobs:
             -DCMAKE_MODULE_PATH=/tmp/fxsdk-exword/lib/cmake/fxsdk
           cmake --build /tmp/gint-build --parallel 2
           cmake --install /tmp/gint-build
+      - name: Test JavaScript picker and Toybox filename handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude -Isrc \
+            -Idependencies/edelweiss/sdk \
+            src/browser.c tests/browser_test.c -o /tmp/qjs-browser-test
+          /tmp/qjs-browser-test
       - name: Build MQuickJS with Edelweiss and generated 32-bit stdlib
         shell: bash
         run: |
