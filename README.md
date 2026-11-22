@@ -18,24 +18,29 @@ EX> qjs ARGS.JS hello 123
 EX> js
 ```
 
-`js` with no filename browses the **current Toybox directory** for 8.3
-`.JS` files; arrows select and EXE runs, EXIT cancels. `scriptArgs` contains
+`js` with no filename opens a filesystem browser in the **current Toybox directory**.
+EXE opens folders or runs any `.JS`/`.js` file; EXIT returns to its parent. `scriptArgs` contains
 the arguments *after* the filename, and `scriptPath` is the resolved file path.
 
 **From the home screen:** build an EX-word installation package with ID
 `QJSJS`. This includes a normal Edelweiss bootstrap `qjs.d01` and an
 identical payload renamed to `main.edl`, as required by its bootstrap. When
-run directly, the interpreter presents a small list of scripts.
+run directly, the interpreter opens a full filesystem browser starting beside
+its `main.edl` payload.
 
-**Standalone directory-index limitation:** Edelweiss ABI v1 enumerates
-`.edl` payloads, not arbitrary storage files. Unlike Toybox, it has no
-directory-enumeration callback. Until that host capability is extended, the
-standalone file picker reads `SCRIPTS.TXT` adjacent to `main.edl` (one
-`.JS` entry per line). Entries can be local 8.3 names or absolute storage paths
-such as `/drv0/SCRIPTS/HELLO.JS` or `/crd0/CASIO/JS/APP.JS`. It also probes
-`MAIN.JS`, `SCRIPT.JS` and `DEMO.JS` as convenience fallbacks. The package
-includes a sample index. This is **indexed browsing**, not automatic full-disk
-scanning; Toybox can automatically browse the current directory.
+**Native EX-word file browser:** Standalone QuickJS now uses the same read-only
+native directory enumeration as [EXWord-Explorer](https://github.com/TheRainbowPhoenix/EXWord-Explorer)
+via Edelweiss's world-switched `os_call`. It displays folders and `.JS`/`.js`
+files on drv0, sys0, data0-data2, and crd0-crd2. UP/DOWN moves, EXE enters
+folders or runs a file, EXIT goes back through parents to the volume list,
+and MENU quits. `SCRIPTS.TXT` is no longer needed (older install packages
+may still contain the unused index).
+
+**Exact-size reads:** The Edelweiss read callback requires each requested byte
+to be in bounds. The launcher now asks the native FS for the file size first
+and reads exactly that many bytes, up to the 96 KiB source limit.
+Toybox CLI runs also try the actual file casing from the parent directory,
+so `js DEMO.JS` works when the stored filename is `demo.js`.
 
 ## JavaScript graphics API
 
