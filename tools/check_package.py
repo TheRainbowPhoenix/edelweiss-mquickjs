@@ -107,7 +107,7 @@ assert u32(table_fileoff) == 0x3c000004, (
     f"invalid big-endian JSString header 0x{u32(table_fileoff):08x}"
 )
 header_text = (base / "generated" / "mqjs_stdlib.h").read_text()
-sorted_match = re.search(r"/\\* sorted atom table \\(offset=(\\d+)\\) \\*/", header_text)
+sorted_match = re.search(r"/\* sorted atom table \(offset=(\d+)\) \*/", header_text)
 assert sorted_match, "generated sorted atom table missing"
 sorted_offset = int(sorted_match[1])
 array_header = u32(table_fileoff + sorted_offset * 4)
