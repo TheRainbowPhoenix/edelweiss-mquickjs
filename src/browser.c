@@ -86,33 +86,21 @@ static int list_directory(const struct edl_api *host,const struct shell_api *she
         }
         return (int)found;
     }
+    /* The standalone host scans a whole directory in ONE native-world
+       switch (per call), never keeping an EX-word find handle over switches. */
     if(!host || !host->os_call)return -1;
-    char glob[EDL_PATH_MAX];
-    size_t n=strlen(dir);
-    if(!n || n+3>=sizeof glob)return -1;
-    memcpy(glob,dir,n);
-    if(glob[n-1]!='\\')glob[n++]='\\';
-    glob[n++]='*';glob[n]=0;
-    int handle=-1;
-    char name[512]={0};
-    uint32_t kind=0;
-    int rc=host->os_call(0x3f,(uint32_t)(uintptr_t)glob,
-                         (uint32_t)(uintptr_t)&handle,
-                         (uint32_t)(uintptr_t)name,
-                         (uint32_t)(uintptr_t)&kind);
-    if(rc<0)return rc==-16 || rc==-1 ? 0 : -1;
-    unsigned count=0;
-    do {
-        name[sizeof name-1]=0;
-        accept(rows,first,&found,name,kind==DIR_KIND);
-        name[0]=0;kind=0;
-        if(++count>=SCAN_LIMIT)break;
-        rc=host->os_call(0x40,(uint32_t)handle,
-                         (uint32_t)(uintptr_t)name,
-                         (uint32_t)(uintptr_t)&kind,0);
-    }while(rc>=0);
-    int closed=host->os_call(0x41,(uint32_t)handle,0,0,0);
-    if(closed<0 || (count<SCAN_LIMIT && rc!=-1 && rc!=-16))return -1;
+    struct edl_dirent page[RAW_PAGE];
+    int total=host->os_call(EDL_OS_BULK_LIST,
+                            (uint32_t)(uintptr_t)dir,0,
+                            (uint32_t)(uintptr_t)page,RAW_PAGE);
+    if(total<0)return -1;
+    for(unsigned at=0;at<(unsigned)total && at<SCAN_LIMIT;at+=RAW_PAGE) {
+        if(at && host->os_call(EDL_OS_BULK_LIST,
+                              (uint32_t)(uintptr_t)dir,at,
+                              (uint32_t)(uintptr_t)page,RAW_PAGE)<0)return -1;
+        for(unsigned j=0;j<RAW_PAGE && at+j<(unsigned)total;j++)
+            accept(rows,first,&found,page[j].name,page[j].directory);
+    }
     return (int)found;
 }
 static void short_name(char out[60],const char *name)
@@ -172,6 +160,12 @@ int qjs_choose_script(const struct edl_api *host,const struct shell_api *shell,
     }
     for(;;) {
         if(!disks && dirty) {
+            /* If native I/O stalls, show the stage rather than leaving the
+               Edelweiss bootstrap's ambiguous 'loading...' screen. */
+            host->rect(0,0,(int)host->width,(int)host->height,PAPER);
+            host->text(12,12,INK,"MicroQuickJS / scanning scripts...");
+            host->text(12,42,HILITE,dir);
+            host->present();
             int rc=list_directory(host,shell,dir,top,rows);
             if(rc<0) {
                 total=0;
@@ -231,11 +225,7 @@ int qjs_script_size(const struct edl_api *host,const struct shell_api *shell,
 {
     if(shell && shell->file_size)return shell->file_size(path);
     if(!host || !host->os_call)return -1;
-    int fd=host->os_call(0x37,(uint32_t)(uintptr_t)path,1,0,0);
-    if(fd<0)return -1;
-    int n=host->os_call(0x3a,(uint32_t)fd,0,0,0);
-    int closed=host->os_call(0x38,(uint32_t)fd,0,0,0);
-    return n>=0 && closed>=0?n:-1;
+    return host->os_call(EDL_OS_FILE_SIZE,(uint32_t)(uintptr_t)path,0,0,0);
 }
 void qjs_correct_shell_filename(const struct shell_api *shell,
                                 char path[EDL_PATH_MAX])
