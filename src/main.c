@@ -377,7 +377,6 @@ int main(void)
     JSGCRef program_ref;
     JSValue *program=JS_PushGCRef(ctx,&program_ref);
     *program=JS_Parse(ctx,source,len,path,0);
-    free(source);
     if(JS_IsException(*program))goto error;
     JSGCRef array_ref;
     JSValue *array=JS_PushGCRef(ctx,&array_ref);
@@ -398,13 +397,16 @@ int main(void)
         goto error;
     }
     JS_PopGCRef(ctx,&array_ref);
+    JSValue path_value=JS_NewString(ctx,path);
+    if(JS_IsException(path_value))goto error;
     global=JS_GetGlobalObject(ctx);
-    if(JS_IsException(JS_SetPropertyStr(ctx,global,"scriptPath",JS_NewString(ctx,path))))
+    if(JS_IsException(JS_SetPropertyStr(ctx,global,"scriptPath",path_value)))
         goto error;
     JSValue value=JS_Run(ctx,*program);
     if(JS_IsException(value))goto error;
     JS_PopGCRef(ctx,&program_ref);
     JS_FreeContext(ctx);
+    free(source);
     free(memory);
     return 0;
 error:
@@ -416,6 +418,7 @@ error:
     }
     JS_PopGCRef(ctx,&program_ref);
     JS_FreeContext(ctx);
+    free(source);
     free(memory);
     return 1;
 }
