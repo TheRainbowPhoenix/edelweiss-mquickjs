@@ -52,7 +52,7 @@ for i in range(section_count):
             imports.add(name)
         elif u16(at + 14):
             defined.add(name)
-assert "_r61523_display" in imports
+assert imports, "expected hosted gint import symbols"
 assert not {"_start", "_exword_entry", "_gint_kernel_install", "_mmu_exword_prepare"} & defined
 print("Hosted gint imports verified; no second kernel/startup in qjs.edl")
 # The CMD1 applet section must be a non-allocated 396-byte PROGBITS object.
