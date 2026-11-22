@@ -100,6 +100,20 @@ for n in range(pht_count):
         table_fileoff = offset + stdlib_table_vaddr - vaddr
         break
 assert table_fileoff is not None, "ROM stdlib symbol is not loadable"
+# SH3EB C bitfields also store the first-declared fields MSB-first.
+# MQuickJS's JSString header must contain mtag=3, unique=1, ascii=1,
+# numeric=0, len=4. A little-endian 0x00000236 header is not usable here.
+assert u32(table_fileoff) == 0x3c000004, (
+    f"invalid big-endian JSString header 0x{u32(table_fileoff):08x}"
+)
+header_text = (base / "generated" / "mqjs_stdlib.h").read_text()
+sorted_match = re.search(r"/\\* sorted atom table \\(offset=(\\d+)\\) \\*/", header_text)
+assert sorted_match, "generated sorted atom table missing"
+sorted_offset = int(sorted_match[1])
+array_header = u32(table_fileoff + sorted_offset * 4)
+assert (array_header >> 28) == 5, (
+    f"invalid big-endian JSValueArray header 0x{array_header:08x}"
+)
 assert payload[table_fileoff + 4:table_fileoff + 8] == b"null", (
     "wrong ROM atom byte order: expected literal 'null' (SH big endian)"
 )
