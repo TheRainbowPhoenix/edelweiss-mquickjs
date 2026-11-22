@@ -66,7 +66,7 @@ for i in range(section_count):
     name_off = u32(sec)
     if name_off >= len(names_blob):
         continue
-    section_name = names_blob[name_off:].split(b"\\0", 1)[0]
+    section_name = names_blob[name_off:].split(bytes([0]), 1)[0]
     if section_name != b".edl.cmd":
         continue
     assert u32(sec + 4) == 1, "manifest must be PROGBITS"
@@ -76,7 +76,7 @@ for i in range(section_count):
     assert offset + 396 <= len(payload)
     magic, version, n = struct.unpack_from(">III", payload, offset)
     assert (magic, version, n) == (0x434D4431, 1, 2)
-    names = [payload[offset + 12 + j * 16:offset + 28 + j * 16].split(b"\\0")[0]
+    names = [payload[offset + 12 + j * 16:offset + 28 + j * 16].split(bytes([0]))[0]
              for j in range(n)]
     assert names == [b"js", b"qjs"], names
     found.append(i)
