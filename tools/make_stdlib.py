@@ -57,50 +57,89 @@ def prepare(src: pathlib.Path, dst: pathlib.Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(text)
 
-_HEX_WORD = re.compile(r"^(\s*)0x([0-9a-fA-F]{8})(,\s*)$")
+_HEX_WORD = re.compile(r"^\s*0x([0-9a-fA-F]{8}),\s*$")
+_STRING_HEADER = re.compile(
+    r'^(\s*)\(JS_MTAG_STRING << 1\) \| \((\d+) << JS_MTAG_BITS\)'
+    r' \| \((\d+) << \(JS_MTAG_BITS \+ 1\)\)'
+    r' \| \((\d+) << \(JS_MTAG_BITS \+ 2\)\)'
+    r' \| \((\d+) << \(JS_MTAG_BITS \+ 3\)\),(.*)$'
+)
+_ARRAY_HEADER = re.compile(r'^(\s*)JS_VALUE_ARRAY_HEADER\((\d+)\),(.*)$')
+_BLOCK_HEADER = re.compile(r'^(\s*)JS_MB_HEADER_DEF\((JS_MTAG_[A-Z0-9_]+)\),(.*)$')
+_PROPERTY_HEADER = re.compile(
+    r'^(\s*)\((\d+) << 1\) \| \((JS_PROP_[A-Z_]+) << 30\),(.*)$'
+)
 
 
 def big_endian_rom(source: str) -> str:
-    """Convert host-generated 32-bit ROM data into SH3EB/SH4 big-endian.
+    """Convert MQuickJS host ROM objects to native SH3EB bitfield layout.
 
-    The -m32 builder runs on a little-endian host. Its 32-bit word output
-    includes packed UTF-8 bytes and IEEE754 float64 halves. Compiling those
-    words *unchanged* for big-endian SH reverses every four characters
-    ('null' -> 'llun') and reverses each double's 32-bit halves. The JS atom
-    lookup uses these strings while parsing: corrupt tables can crash the VM.
+    The host builder emits little-endian string bytes, double halves AND
+    little-endian C bitfield headers. A SH3EB compiler lays bitfields MSB-first:
+    GC mtag bits are at 30..28, string flags at 27..25, lengths at 24..0.
+    Without conversion, ROM 'null' is 'llun', and ROM JSString/JSValueArray
+    headers are seen as FREE or invalid by the runtime, corrupting the parser.
 
-    Numeric JSValue words and ROM relocations must NOT be byteswapped.
+    Only generated ROM objects are rewritten: dynamic JSValue integers and
+    pointer expressions are left intact. The MQuickJS runtime's native C
+    bitfields need no changes because it creates those on the target CPU.
     """
-    lines = source.splitlines(keepends=True)
-    begins = [i for i, line in enumerate(lines) if line.strip() == "/* atom_table */"]
-    ends = [i for i, line in enumerate(lines)
-            if line.strip().startswith("/* sorted atom table (offset=")]
-    if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
+    lines = source.splitlines()
+    begin = [i for i, line in enumerate(lines) if line.strip() == "/* atom_table */"]
+    end = [i for i, line in enumerate(lines)
+           if line.strip().startswith("/* sorted atom table (offset=")]
+    if len(begin) != 1 or len(end) != 1 or begin[0] >= end[0]:
         raise ValueError("unexpected MQuickJS ROM atom layout")
-    words = 0
-    for i in range(begins[0] + 1, ends[0]):
-        match = _HEX_WORD.fullmatch(lines[i])
-        if match is None:
+    counts = dict(strings=0, bytes=0, arrays=0, blocks=0, properties=0, floats=0)
+    for i, line in enumerate(lines):
+        match = _STRING_HEADER.fullmatch(line)
+        if match:
+            unique, ascii_, numeric, length = map(int, match.group(2, 3, 4, 5))
+            if unique > 1 or ascii_ > 1 or numeric > 1 or length >= 1 << 25:
+                raise ValueError("invalid generated ROM string metadata")
+            lines[i] = (
+                f"{match[1]}(JS_MTAG_STRING << 28) | ({unique} << 27)"
+                f" | ({ascii_} << 26) | ({numeric} << 25) | {length},{match[6]}"
+            )
+            counts["strings"] += 1
             continue
-        value = int(match[2], 16)
-        # The builder packs source bytes into 32-bit little-endian words.
-        swapped = int.from_bytes(value.to_bytes(4, "little"), "big")
-        lines[i] = f"{match[1]}0x{swapped:08x}{match[3]}"
-        words += 1
-    floats = 0
+        match = _ARRAY_HEADER.fullmatch(line)
+        if match:
+            lines[i] = f"{match[1]}((JS_MTAG_VALUE_ARRAY << 28) | {match[2]}),{match[3]}"
+            counts["arrays"] += 1
+            continue
+        match = _BLOCK_HEADER.fullmatch(line)
+        if match:
+            lines[i] = f"{match[1]}({match[2]} << 28),{match[3]}"
+            counts["blocks"] += 1
+            continue
+        match = _PROPERTY_HEADER.fullmatch(line)
+        if match:
+            # JSProperty is (hash_next:30, prop_type:2). BE stores the
+            # first-declared hash_next in high bits and prop_type in low bits.
+            lines[i] = f"{match[1]}(({match[2]} << 3) | {match[3]}),{match[4]}"
+            counts["properties"] += 1
+            continue
+        if begin[0] < i < end[0]:
+            match = _HEX_WORD.fullmatch(line)
+            if match:
+                value = int(match[1], 16)
+                swapped = int.from_bytes(value.to_bytes(4, "little"), "big")
+                lines[i] = f"  0x{swapped:08x},"
+                counts["bytes"] += 1
     for i, line in enumerate(lines):
         if "/* float64 (offset=" not in line:
             continue
-        if "JS_MB_HEADER_DEF(JS_MTAG_FLOAT64)" not in lines[i + 1]:
-            raise ValueError("unexpected MQuickJS float64 ROM layout")
+        if "JS_MTAG_FLOAT64" not in lines[i + 1]:
+            raise ValueError("unexpected MQuickJS ROM float header")
         if not _HEX_WORD.fullmatch(lines[i + 2]) or not _HEX_WORD.fullmatch(lines[i + 3]):
-            raise ValueError("unexpected MQuickJS float64 payload layout")
-        # C stores the 64-bit IEEE value high-word first on a BE target.
+            raise ValueError("unexpected MQuickJS float64 payload")
+        # Little-endian binary64 halves -> big-endian high then low.
         lines[i + 2], lines[i + 3] = lines[i + 3], lines[i + 2]
-        floats += 1
-    if words < 200 or floats < 1:
-        raise ValueError(f"incomplete ROM conversion: {words} atoms, {floats} floats")
-    return "".join(lines)
+        counts["floats"] += 1
+    if counts["bytes"] < 200 or any(count == 0 for count in counts.values()):
+        raise ValueError(f"incomplete target-endian ROM conversion: {counts}")
+    return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
 
 
 def generate(executable: str, header: pathlib.Path, atoms: pathlib.Path) -> None:
