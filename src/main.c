@@ -28,6 +28,18 @@ const struct shell_manifest shell_commands = {
 static const struct edl_api *host;
 static const struct shell_api *shell;
 static int log_y, graphics_started;
+/* Device diagnostics: distinguish ELF/startup, FS, VM, parsing and execution.
+   A long-running JS script must never look like a frozen loader screen. */
+static void stage(const char *name)
+{
+    if(!host || !host->rect || !host->text || !host->present)return;
+    host->rect(0,0,(int)host->width,(int)host->height,0xffff);
+    host->text(12,12,0x0841,"MicroQuickJS - starting");
+    host->text(12,39,0x2273,name);
+    host->text(12,73,0x0841,"If frozen, report the displayed stage.");
+    host->present();
+}
+
 static char filenames[MAX_FILES][NAME_MAX_LOCAL];
 static unsigned filename_count;
 
@@ -233,6 +245,7 @@ static int read_source(const char *path,char **out,size_t *length)
 int main(void)
 {
     if(!host || !host->read)return -1;
+    stage("Payload initialized");
     char path[EDL_PATH_MAX]={0};
     if(shell && shell->argc>=2){
         if(!shell->resolve_path || shell->resolve_path(shell->argv[1],path)){
@@ -240,6 +253,7 @@ int main(void)
         }
         qjs_correct_shell_filename(shell,path);
     } else {
+        stage("Opening script browser...");
         int selected=qjs_choose_script(host,shell,path);
         if(selected<=0)return selected<0?2:0;
     }
@@ -248,6 +262,7 @@ int main(void)
     if(host->rect && !shell)host->rect(0,0,(int)host->width,(int)host->height,PAPER);
     char *source=0;
     size_t len=0;
+    stage("Opening/reading JS source...");
     int rc=read_source(path,&source,&len);
     if(rc){
         print_line(rc==-2?"js: source exceeds 96 KiB":"js: cannot read script");
@@ -258,13 +273,16 @@ int main(void)
         }
         return 2;
     }
+    stage("Allocating VM buffer...");
     void *memory=malloc(VM_BYTES);
     if(!memory){free(source);print_line("js: out of memory");return 2;}
+    stage("Initializing JavaScript VM...");
     JSContext *ctx=JS_NewContext(memory,VM_BYTES,&js_stdlib);
     if(!ctx){free(source);free(memory);print_line("js: JS context failed");return 2;}
     JS_SetLogFunc(ctx,log_func);
     JSGCRef program_ref;
     JSValue *program=JS_PushGCRef(ctx,&program_ref);
+    stage("Parsing JavaScript...");
     *program=JS_Parse(ctx,source,len,path,0);
     if(JS_IsException(*program))goto error;
     JSGCRef array_ref;
@@ -291,6 +309,7 @@ int main(void)
     global=JS_GetGlobalObject(ctx);
     if(JS_IsException(JS_SetPropertyStr(ctx,global,"scriptPath",path_value)))
         goto error;
+    stage("Executing JavaScript...");
     JSValue value=JS_Run(ctx,*program);
     if(JS_IsException(value))goto error;
     JS_PopGCRef(ctx,&program_ref);
