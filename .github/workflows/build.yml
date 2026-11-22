@@ -23,7 +23,9 @@ jobs:
         with:
           python-version: '3.13'
       - name: Check generator and package validator syntax
-        run: python3 -m py_compile tools/make_stdlib.py tools/check_package.py
+        run: |
+          python3 -m py_compile tools/make_stdlib.py tools/check_package.py
+          python3 -m unittest discover -s tests -p 'test_stdlib_endian.py'
   build:
     runs-on: ubuntu-latest
     container:
