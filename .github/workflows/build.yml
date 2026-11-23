@@ -29,7 +29,7 @@ jobs:
       - name: Verify all bundled ES5-style demo syntax
         run: |
           for source in examples/*.JS; do
-            node --check "$source"
+            node --check < "$source"
           done
   build:
     runs-on: ubuntu-latest
