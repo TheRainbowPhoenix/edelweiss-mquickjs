@@ -75,6 +75,10 @@ jobs:
             -Idependencies/edelweiss/sdk \
             src/browser.c tests/browser_test.c -o /tmp/qjs-browser-test
           /tmp/qjs-browser-test
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude -Isrc \
+            -Idependencies/edelweiss/sdk \
+            src/gint_draw.c tests/gint_draw_test.c -o /tmp/qjs-gint-draw-test
+          /tmp/qjs-gint-draw-test
       - name: Build MQuickJS with Edelweiss and generated 32-bit stdlib
         shell: bash
         run: |
