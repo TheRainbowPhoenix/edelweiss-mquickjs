@@ -47,6 +47,10 @@ int main(void)
     qjs_draw_rect_border(4,4,11,11,0x22,2,0x33);
     assert(pixels[4][4]==0x33 && pixels[5][5]==0x33);
     assert(pixels[6][6]==0x22);
+    qjs_draw_rect(20,4,28,11,0xabab);
+    qjs_draw_rect_border(20,4,28,11,-1,2,0x99);
+    assert(pixels[6][23]==0xabab); /* transparent center preserved */
+    assert(pixels[4][22]==0x99 && pixels[10][21]==0x99);
     qjs_draw_circle(16,11,4,0x44,0x55);
     assert(pixels[11][16]==0x44);
     assert(pixels[11][20]==0x55 && pixels[15][16]==0x55);
