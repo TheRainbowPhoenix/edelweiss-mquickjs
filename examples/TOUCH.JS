@@ -1,31 +1,40 @@
-/* TOUCH.JS - Touch drawing demo using real gint events.
-   Drag a finger to draw. EXE clears; EXIT/ACON quits. */
-var W=gint.DWIDTH,H=gint.DHEIGHT;
-function clear(){
-  gint.dclear(gint.C_WHITE);
-  gint.dtext(2,2,gint.C_BLACK,"Touch: draw | EXE: clear | EXIT: quit");
-}
-clear();
-gint.dupdate();
-var x=-1,y=-1;
+/* TOUCH.JS - standalone, shallow ES5 event loop for SuperH MQuickJS.
+   Use genuine gint events; no nested function declaration to stress the
+   constrained MQuickJS parser. EXE clears; EXIT / AC/ON returns to Toybox. */
+var g=gint;
+var lastX=-1,lastY=-1;
 var running=true;
+g.dclear(g.C_WHITE);
+g.dtext(2,2,g.C_BLACK,"Touch: draw | EXE: clear | EXIT: quit");
+g.dupdate();
 while(running){
-  var ev=gint.getkeyevent(16);
-  var dirty=false;
-  while(ev.type!==gint.KEYEV_NONE){
-    if(ev.type===gint.KEYEV_DOWN){
-      if(ev.key===gint.KEY_EXE){clear();dirty=true;x=-1;y=-1;}
-      if(ev.key===gint.KEY_EXIT||ev.key===gint.KEY_ACON){running=false;break;}
-    }else if(ev.type===gint.KEYEV_TOUCH_DOWN){
-      x=ev.x;y=ev.y;
-      gint.dpixel(x,y,gint.C_BLACK);dirty=true;
-    }else if(ev.type===gint.KEYEV_TOUCH_DRAG){
-      if(x>=0&&y>=0)gint.dline(x,y,ev.x,ev.y,gint.C_BLACK);
-      x=ev.x;y=ev.y;dirty=true;
-    }else if(ev.type===gint.KEYEV_TOUCH_UP){
-      x=-1;y=-1;
+    /* The 16ms timeout also permits EXIT processing without a touch. */
+    var ev=g.getkeyevent(16);
+    var dirty=false;
+    if(ev.type===g.KEYEV_DOWN){
+        if(ev.key===g.KEY_EXE){
+            g.dclear(g.C_WHITE);
+            g.dtext(2,2,g.C_BLACK,"Touch: draw | EXE: clear | EXIT: quit");
+            lastX=-1;
+            lastY=-1;
+            dirty=true;
+        }
+        if(ev.key===g.KEY_EXIT || ev.key===g.KEY_ACON)
+            running=false;
+    }else if(ev.type===g.KEYEV_TOUCH_DOWN){
+        lastX=ev.x;
+        lastY=ev.y;
+        g.dpixel(lastX,lastY,g.C_BLACK);
+        dirty=true;
+    }else if(ev.type===g.KEYEV_TOUCH_DRAG){
+        if(lastX>=0 && lastY>=0)
+            g.dline(lastX,lastY,ev.x,ev.y,g.C_BLACK);
+        lastX=ev.x;
+        lastY=ev.y;
+        dirty=true;
+    }else if(ev.type===g.KEYEV_TOUCH_UP){
+        lastX=-1;
+        lastY=-1;
     }
-    ev=gint.pollevent();
-  }
-  if(dirty)gint.dupdate();
+    if(dirty)g.dupdate();
 }
