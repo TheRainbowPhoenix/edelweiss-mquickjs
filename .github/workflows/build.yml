@@ -26,6 +26,11 @@ jobs:
         run: |
           python3 -m py_compile tools/make_stdlib.py tools/check_package.py
           python3 -m unittest discover -s tests -p 'test_stdlib_endian.py'
+      - name: Verify all bundled ES5-style demo syntax
+        run: |
+          for source in examples/*.JS; do
+            node --check "$source"
+          done
   build:
     runs-on: ubuntu-latest
     container:
