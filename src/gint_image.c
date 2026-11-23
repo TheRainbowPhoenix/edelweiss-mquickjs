@@ -1,5 +1,6 @@
 #include "gint_image.h"
 #include "gint_draw.h"
+#include "gint_hosted.h"
 #include <gint/display.h>
 #include <gint/image.h>
 #include <stdlib.h>
@@ -70,6 +71,6 @@ int qjs_image_draw(int id,int x,int y,int sx,int sy,int width,int height)
     if(x+width>bounds[2])width=bounds[2]-x;
     if(y+height>bounds[3])height=bounds[3]-y;
     if(width<=0||height<=0)return 0;
-    dsubimage(x,y,img,sx,sy,width,height,DIMAGE_NONE);
+    edl_native_dsubimage(x,y,img,sx,sy,width,height,DIMAGE_NONE);
     return 0;
 }
