@@ -8,7 +8,7 @@
 static unsigned draws;
 static int last_x,last_y,last_sx,last_sy,last_w,last_h;
 static unsigned last_pixel;
-void dsubimage(int x,int y,const image_t *img,int sx,int sy,int w,int h,int flags)
+void edl_native_dsubimage(int x,int y,const image_t *img,int sx,int sy,int w,int h,int flags)
 {
     (void)flags;
     assert(img->format==IMAGE_RGB565 && img->stride%4==0);
