@@ -28,11 +28,13 @@ const struct shell_manifest shell_commands = {
 static const struct edl_api *host;
 static const struct shell_api *shell;
 static int log_y, graphics_started;
-/* Device diagnostics: distinguish ELF/startup, FS, VM, parsing and execution.
-   A long-running JS script must never look like a frozen loader screen. */
+/* Standalone launch keeps freeze-stage diagnostics. Toybox already prints
+   the applet's return status and load timing, so painting a full 528x320
+   frame at EACH of seven startup stages needlessly blocks shell execution
+   and erases the terminal before the JS script draws anything. */
 static void stage(const char *name)
 {
-    if(!host || !host->rect || !host->text || !host->present)return;
+    if(shell || !host || !host->rect || !host->text || !host->present)return;
     host->rect(0,0,(int)host->width,(int)host->height,0xffff);
     host->text(12,12,0x0841,"MicroQuickJS - starting");
     host->text(12,39,0x2273,name);
