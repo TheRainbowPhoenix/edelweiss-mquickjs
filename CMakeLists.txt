@@ -112,6 +112,18 @@ foreach(LOCALE IN ITEMS ja cn)
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/DEMO.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/DEMO.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/TOUCH.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/TOUCH.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/FLAGS.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/FLAGS.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/TILES.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/TILES.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/DINO.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/DINO.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/GFX.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/GFX.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
