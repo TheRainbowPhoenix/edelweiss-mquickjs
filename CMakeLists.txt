@@ -76,6 +76,12 @@ add_gint_edl(qjs
   "${mquickjs_SOURCE_DIR}/dtoa.c"
   "${mquickjs_SOURCE_DIR}/libm.c"
   "${mquickjs_SOURCE_DIR}/cutils.c")
+# Experimental hardware work-around for the SH3EB parser TLB fault at
+# qjs.edl text+0xb02a (js_emit_push_number): compile MQuickJS with conservative
+# optimization/aliasing while retaining the OS/ROM/runtime implementation.
+# This is intentionally isolated from main until the same device confirms it.
+set_source_files_properties("${mquickjs_SOURCE_DIR}/mquickjs.c"
+  PROPERTIES COMPILE_OPTIONS "-O1;-fno-strict-aliasing;-fno-optimize-sibling-calls;-fstack-usage")
 add_dependencies(qjs qjs_codegen)
 target_include_directories(qjs PRIVATE "${GENERATED}" "${mquickjs_SOURCE_DIR}" include)
 # Capture the host API without modifying Edelweiss's ABI or startup.
