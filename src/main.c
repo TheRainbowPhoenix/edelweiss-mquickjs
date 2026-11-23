@@ -6,6 +6,11 @@
 #include "toybox_abi.h"
 #include "browser.h"
 #include "gint_draw.h"
+#include <gint/keyboard.h>
+#include <gint/keycodes.h>
+#include <gint/rtc.h>
+#include <gint/display.h>
+#include <gint/image.h>
 #include "mquickjs.h"
 #include <stdlib.h>
 #include <stdint.h>
@@ -269,40 +274,81 @@ static JSValue js_gint_C_RGB(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
        int_arg(ctx,argc,argv,2,&b))return JS_EXCEPTION;
     return JS_NewInt32(ctx,((r&31)<<11)|((g&63)<<5)|(b&31));
 }
+/* These are native gint key events, not the legacy EDL semantic actions.
+   Unlike the v1 wait callback, raw events include TOUCH_DRAG, TOUCH_UP,
+   physical key codes, shift/alpha and time (like PythonExtra). */
+static JSValue js_event_object(JSContext *ctx,key_event_t e)
+{
+    JSValue obj=JS_NewObject(ctx);
+    if(JS_IsException(obj))return obj;
+    const char *fields[]={"type","key","x","y","time"};
+    int touch=e.type==KEYEV_TOUCH_DOWN || e.type==KEYEV_TOUCH_UP ||
+              e.type==KEYEV_TOUCH_DRAG;
+    int values[]={e.type,touch?0:e.key,touch?e.x:0,touch?e.y:0,e.time};
+    for(unsigned i=0;i<5;i++)
+        if(JS_IsException(JS_SetPropertyStr(ctx,obj,fields[i],
+                          JS_NewInt32(ctx,values[i]))))return JS_EXCEPTION;
+    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"shift",JS_NewBool(!touch&&e.shift)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"alpha",JS_NewBool(!touch&&e.alpha)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"mod",JS_NewBool(!touch&&e.mod))))
+        return JS_EXCEPTION;
+    return obj;
+}
 static JSValue js_gint_getkeyevent(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
     (void)th;
     int timeout=0;
     if(argc && int_arg(ctx,argc,argv,0,&timeout))return JS_EXCEPTION;
     if(timeout<0||timeout>60000)return JS_ThrowRangeError(ctx,
-        "getkeyevent timeout must be 0..60000 ms");
-    struct edl_event event={0};
-    if(host){
-        if(timeout && host->wait_timeout)host->wait_timeout(&event,(unsigned)timeout);
-        else if(!timeout && host->wait)host->wait(&event);
-        else return JS_ThrowTypeError(ctx,"host does not support event timeout");
+        "getkeyevent timeout: 0..60000ms");
+    if(timeout==0)return js_event_object(ctx,waitevent(NULL));
+    uint32_t begin=rtc_ticks(),limit=((unsigned)timeout*128u+999u)/1000u;
+    for(;;){
+        key_event_t ev=pollevent();
+        if(ev.type!=KEYEV_NONE)return js_event_object(ctx,ev);
+        uint32_t now=rtc_ticks(),day=128u*86400u;
+        uint32_t elapsed=now>=begin?now-begin:day-begin+now;
+        if(elapsed>=limit)return js_event_object(ctx,ev);
     }
-    JSValue obj=JS_NewObject(ctx);
-    if(JS_IsException(obj))return obj;
-    const char *fields[]={"type","key","x","y","time"};
-    int values[]={event.key?(event.key==EDL_TOUCH?4:1):0,
-                  event.key,event.x,event.y,0};
-    for(unsigned i=0;i<5;i++)
-        if(JS_IsException(JS_SetPropertyStr(ctx,obj,fields[i],
-                          JS_NewInt32(ctx,values[i]))))return JS_EXCEPTION;
-    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"shift",JS_NewBool(0)))||
-       JS_IsException(JS_SetPropertyStr(ctx,obj,"alpha",JS_NewBool(0)))||
-       JS_IsException(JS_SetPropertyStr(ctx,obj,"mod",JS_NewBool(0))))
-        return JS_EXCEPTION;
-    return obj;
 }
 static JSValue js_gint_pollevent(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
-    (void)argc;(void)argv;
-    JSValue ms=JS_NewInt32(ctx,1);
-    return js_gint_getkeyevent(ctx,th,1,&ms);
+    (void)th;(void)argc;(void)argv;
+    return js_event_object(ctx,pollevent());
 }
-
+static JSValue js_gint_keydown(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int key;
+    if(int_arg(ctx,argc,argv,0,&key))return JS_EXCEPTION;
+    return JS_NewBool(keydown(key)!=0);
+}
+static JSValue js_gint_keypressed(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int key;
+    if(int_arg(ctx,argc,argv,0,&key))return JS_EXCEPTION;
+    return JS_NewBool(keypressed(key)!=0);
+}
+static JSValue js_gint_keyreleased(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int key;
+    if(int_arg(ctx,argc,argv,0,&key))return JS_EXCEPTION;
+    return JS_NewBool(keyreleased(key)!=0);
+}
+static JSValue js_gint_clearevents(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)ctx;(void)th;(void)argc;(void)argv;
+    clearevents();
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_cleareventflips(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)ctx;(void)th;(void)argc;(void)argv;
+    cleareventflips();
+    return JS_UNDEFINED;
+}
 static JSValue js_gint_dclear(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
     (void)th;
