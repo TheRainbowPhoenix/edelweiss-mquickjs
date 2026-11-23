@@ -25,6 +25,7 @@ for locale in ("ja", "cn"):
     assert (package / "main.edl").read_bytes() == payload
     assert (package / "DEMO.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "DEMO.JS").read_bytes()
     assert (package / "ARGS.JS").is_file()
+    assert (package / "GFX.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "GFX.JS").read_bytes()
     assert (package / "SCRIPTS.TXT").is_file()
     assert (package / "fileinfo.cji").is_file()
     html = list(package.glob("*.htm"))
