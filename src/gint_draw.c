@@ -95,18 +95,28 @@ static void octants(int cx,int cy,int x,int y,int color)
 void qjs_draw_circle(int cx,int cy,int radius,int fill,int border)
 {
     if(radius<0)return;
-    int x=radius,y=0,err=1-radius;
-    while(x>=y){
-        if(fill>=0){
+    /* Fill first, draw the border second; interleaving the two causes later
+       fill scanlines to erase previously drawn octants of the outline. */
+    if(fill>=0){
+        int x=radius,y=0,err=1-radius;
+        while(x>=y){
             native_rect(cx-x,cy+y,cx+x,cy+y,fill);
             native_rect(cx-x,cy-y,cx+x,cy-y,fill);
             native_rect(cx-y,cy+x,cx+y,cy+x,fill);
             native_rect(cx-y,cy-x,cx+y,cy-x,fill);
+            y++;
+            if(err<0)err+=2*y+1;
+            else{x--;err+=2*(y-x)+1;}
         }
-        if(border>=0)octants(cx,cy,x,y,border);
-        y++;
-        if(err<0)err+=2*y+1;
-        else{x--;err+=2*(y-x)+1;}
+    }
+    if(border>=0){
+        int x=radius,y=0,err=1-radius;
+        while(x>=y){
+            octants(cx,cy,x,y,border);
+            y++;
+            if(err<0)err+=2*y+1;
+            else{x--;err+=2*(y-x)+1;}
+        }
     }
 }
 void qjs_draw_ellipse(int x1,int y1,int x2,int y2,int fill,int border)
