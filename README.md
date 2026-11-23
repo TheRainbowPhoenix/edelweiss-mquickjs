@@ -60,9 +60,41 @@ Inspired by [PythonExtra's gint reference](https://raw.githubusercontent.com/Cla
 
 Drawings remain in the framebuffer until `gint.dupdate()` is called. Rectangle endpoints are **inclusive**; `dwindow_set` clipping endpoints right/bottom are **exclusive** and apply to the new software graphics primitives. The resident's text renderer does not yet honor this software clip. Use `C_NONE` for optional shape fill/border. Coordinates are bounded to -4096..4096; polygons support 3..32 vertex pairs.
 
-### Typed key events
+### Native key and touch events
 
-`getkeyevent(timeout_ms)` returns `{type,key,x,y,time,shift,alpha,mod}`. A timeout of zero waits indefinitely; 1..60000 ms yields `KEYEV_NONE` on expiration. `pollevent()` polls with a 1 ms timeout (hardware clock granularity may be longer). Abstract keys use `KEYEV_DOWN`; touch maps to `KEYEV_TOUCH_DOWN`. Since the Edelweiss v1 callback provides only semantic key/x/y, `time`, `shift`, `alpha`, and `mod` are currently zero/false. `KEY_UP`, `KEY_DOWN`, etc. are **EDL action codes, not gint's physical scancodes**.
+`gint.pollevent()` returns the **actual gint-exword event**, including
+`KEYEV_TOUCH_DOWN` (5), `KEYEV_TOUCH_DRAG` (6),
+`KEYEV_TOUCH_UP` (7), physical `key`, `time`, `shift`,
+`alpha`, `mod`, `x`, and `y`, just like PythonExtra.
+`gint.getkeyevent(0)` waits for the next raw event;
+`getkeyevent(1..60000)` has a timeout.
+`gint.keydown(key)`, `keypressed(key)`, `keyreleased(key)`,
+`clearevents()` and `cleareventflips()` are native gint functions.
+
+The `KEY_*` constants now use **physical gint keycodes** (e.g.
+`KEY_EXE=0x15`, `KEY_EXIT=0x74`, `KEY_UP=0x86`, `KEY_8=0x42`).
+The legacy `gint.getkey()` still returns EDL semantic actions;
+`gint.UP`/`gint.OK` etc. retain their original abstract values.
+The recommended cross-application interface is `pollevent()` and
+`getkeyevent()` with physical keys.
+
+### Sprite images and tilemaps
+
+`gint.image_rgb565(width,height,pixels)` takes a **flat row-major JS array**
+of RGB565 integer pixels and returns a sprite object. Pixels are decoded **once**
+into native aligned 16-bit memory, not decoded again on each draw.
+`gint.dimage(x,y,sprite)` draws it at native gint speed;
+`gint.dsubimage(x,y,sprite,sx,sy,width,height)` draws a region of an
+atlas. Both respect `dwindow_set` clipping. Up to 24 sprites and
+128 KiB of decoded images are allowed in one JS invocation, with image
+dimensions bounded to 256×256. This initial implementation supports
+**opaque RGB565**; palette formats and custom transparent colors remain future work.
+Sprite storage is released at script termination. `dgetpixel(x,y)`
+is also now exposed for framebuffer reads (returns -1 outside the display).
+
+Demonstration scripts: `TOUCH.JS` (finger drawing), `FLAGS.JS`
+(PythonExtra graphics), `TILES.JS` (512 atlas subimage draws), and
+`DINO.JS` (keyboard-based endless runner with native cached sprites).
 
 ### Example
 
@@ -76,7 +108,7 @@ gint.dupdate();
 gint.wait(3000);
 ```
 
-See `examples/GFX.JS` for a richer example. APIs requiring direct VRAM reads, custom fonts, physical key-state polling, or image objects (`dgetpixel`, `dfont`, `dimage`, `keydown`, etc.) are not yet available. This is a safe resident-backed subset, **not full PythonExtra API parity**.
+See `examples/GFX.JS` for the basic shapes and `examples/TOUCH.JS`, `FLAGS.JS`, `TILES.JS` and `DINO.JS` for the newer native facilities. Custom fonts and indexed/palette images are still not implemented. This remains a subset of PythonExtra's gint module.
 
 This is **MicroQuickJS**, not QuickJS/Node. It supports a subset of JavaScript
 close to ES5. There is no `require`, `fs`, DOM, imported modules, or event loop.
