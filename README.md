@@ -41,26 +41,42 @@ The picker navigates mounted EX-word volumes, directories and `.JS` files.
 initialization stage on screen: browser scan, file read, VM allocation,
 context initialization, source parsing, and JavaScript execution.
 If the display stays on one stage, photograph or quote that exact line.
-The payload has not been verified on physical hardware. Try the tiny
+Basic HELLO.JS and DEMO.JS execution has been confirmed on a physical EX-word device; new graphics extensions remain unverified on hardware. Try the tiny
 `SMOKE.JS` (one-shot graphics) before the interactive `DEMO.JS`.
 
-## JavaScript graphics API
+## JavaScript `gint` API
 
-The JavaScript global `gint` uses Edelweiss's resident drawing callbacks:
+Inspired by [PythonExtra's gint reference](https://raw.githubusercontent.com/ClasspadDev/wiki/refs/heads/main/src/content/docs/python/reference/gint.mdx) and its [native bindings](https://github.com/TheRainbowPhoenix/PythonExtra/blob/main/ports/sh/modgint.c), this JavaScript subset uses the existing Edelweiss resident's drawing callbacks and does **not** install a second gint kernel.
 
-| Function | Effect |
+| Category | Methods |
 | --- | --- |
-| `gint.dclear(color)` | Fill the 528 × 320 framebuffer with RGB565 |
-| `gint.drect(x1,y1,x2,y2,color)` | Draw clipped, inclusive filled rectangle |
-| `gint.dtext(x,y,color,string)` | Draw text |
-| `gint.dupdate()` | Refresh screen |
-| `gint.getkey()` | Wait for an abstract key code |
-| `gint.wait(ms)` | Wait with timeout, *if the host provides* `wait_timeout` |
-| `gint.rgb(r,g,b)` | Convert 8-bit RGB to RGB565 |
-| `gint.width()`, `gint.height()` | Current screen dimensions |
+| Display | `dclear(color)`, `dupdate()`, `dtext(x,y,color,text)` |
+| Shapes | `drect(x1,y1,x2,y2,color)`, `drect_border(x1,y1,x2,y2,fill,width,border)`, `dpixel(x,y,color)`, `dline(x1,y1,x2,y2,color)` |
+| More primitives | `dhline(y,color)`, `dvline(x,color)`, `dcircle(cx,cy,r,fill,border)`, `dellipse(x1,y1,x2,y2,fill,border)`, `dpoly([x0,y0,x1,y1,...],fill,border)` |
+| Clipping | `dwindow_set(left,top,right,bottom)`, `dwindow_get()` (returns a 4-element array) |
+| Color/dimensions | `C_RGB(r5,g6,b5)`, `rgb(r8,g8,b8)`, `DWIDTH`, `DHEIGHT`, `width()`, `height()` |
+| Input | `getkey()` (legacy integer), `getkeyevent(timeout_ms=0)`, `pollevent()`, `wait(ms)` |
+| Constants | `C_WHITE`, `C_BLACK`, `C_RED`, `C_GREEN`, `C_BLUE`, `C_NONE` (=-1); `UP`, `DOWN`, `LEFT`, `RIGHT`, `OK`, `BACK`, `HOME`, `TOUCH`, `REFRESH` |
 
-Key constants: `gint.UP`, `DOWN`, `LEFT`, `RIGHT`, `OK`, `BACK` and
-`HOME`. See `examples/DEMO.JS` for an input-driven GUI example.
+Drawings remain in the framebuffer until `gint.dupdate()` is called. Rectangle endpoints are **inclusive**; `dwindow_set` clipping endpoints right/bottom are **exclusive** and apply to the new software graphics primitives. The resident's text renderer does not yet honor this software clip. Use `C_NONE` for optional shape fill/border. Coordinates are bounded to -4096..4096; polygons support 3..32 vertex pairs.
+
+### Typed key events
+
+`getkeyevent(timeout_ms)` returns `{type,key,x,y,time,shift,alpha,mod}`. A timeout of zero waits indefinitely; 1..60000 ms yields `KEYEV_NONE` on expiration. `pollevent()` polls with a 1 ms timeout (hardware clock granularity may be longer). Abstract keys use `KEYEV_DOWN`; touch maps to `KEYEV_TOUCH_DOWN`. Since the Edelweiss v1 callback provides only semantic key/x/y, `time`, `shift`, `alpha`, and `mod` are currently zero/false. `KEY_UP`, `KEY_DOWN`, etc. are **EDL action codes, not gint's physical scancodes**.
+
+### Example
+
+```js
+gint.dclear(gint.C_WHITE);
+gint.dcircle(120, 130, 55, gint.C_BLUE, gint.C_BLACK);
+gint.dwindow_set(20, 80, 500, 240);
+gint.dline(0, 0, 528, 300, gint.C_RED);
+gint.dwindow_set(0, 0, gint.DWIDTH, gint.DHEIGHT);
+gint.dupdate();
+gint.wait(3000);
+```
+
+See `examples/GFX.JS` for a richer example. APIs requiring direct VRAM reads, custom fonts, physical key-state polling, or image objects (`dgetpixel`, `dfont`, `dimage`, `keydown`, etc.) are not yet available. This is a safe resident-backed subset, **not full PythonExtra API parity**.
 
 This is **MicroQuickJS**, not QuickJS/Node. It supports a subset of JavaScript
 close to ES5. There is no `require`, `fs`, DOM, imported modules, or event loop.
