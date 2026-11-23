@@ -5,7 +5,7 @@ if(NOT FXSDK_PLATFORM_LONG STREQUAL "exword")
 endif()
 
 # Keep this branch to follow the latest EX-word runtime, or pin a commit/tag.
-set(EDELWEISS_REF "edelweiss" CACHE STRING "Upstream Edelweiss branch, tag or commit")
+set(EDELWEISS_REF "feature/gint-api-image-touch-exports" CACHE STRING "Upstream Edelweiss branch, tag or commit")
 set(EXWORD_APP_ID "QJSJS" CACHE STRING "Five-character dictionary installation ID")
 set(EXWORD_MODULE "qjs" CACHE STRING "D01 filename without its extension")
 set(EXWORD_HEAP_SIZE "393216" CACHE STRING "Payload-local gint heap in bytes")
@@ -71,6 +71,7 @@ add_gint_edl(qjs
   src/main.c
   src/browser.c
   src/gint_draw.c
+  src/gint_image.c
   "${mquickjs_SOURCE_DIR}/mquickjs.c"
   "${mquickjs_SOURCE_DIR}/dtoa.c"
   "${mquickjs_SOURCE_DIR}/libm.c"
