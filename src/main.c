@@ -7,6 +7,7 @@
 #include "browser.h"
 #include "gint_draw.h"
 #include "gint_image.h"
+#include "gint_hosted.h"
 #include <gint/keyboard.h>
 #include <gint/keycodes.h>
 #include <gint/rtc.h>
@@ -432,7 +433,7 @@ static JSValue js_gint_dgetpixel(JSContext *ctx,JSValue *th,int argc,JSValue *ar
        coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
     if(!host||x<0||y<0||x>=(int)host->width||y>=(int)host->height)
         return JS_NewInt32(ctx,-1);
-    return JS_NewInt32(ctx,dgetpixel(x,y));
+    return JS_NewInt32(ctx,edl_native_dgetpixel(x,y));
 }
 static JSValue js_gint_dclear(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
