@@ -1,4 +1,5 @@
 #include "gint_image.h"
+#include "gint_draw.h"
 #include <gint/display.h>
 #include <gint/image.h>
 #include <stdlib.h>
@@ -60,6 +61,15 @@ int qjs_image_draw(int id,int x,int y,int sx,int sy,int width,int height)
     image_t *img=&slots[id-1].image;
     if(sx<0||sy<0||width<1||height<1||sx>img->width||sy>img->height||
        width>img->width-sx||height>img->height-sy)return -1;
+    /* Honor JS dwindow_set() in addition to gint's display clipping.
+       Source coordinates follow the destination offset after cropping. */
+    int bounds[4];
+    qjs_draw_get_window(bounds);
+    if(x<bounds[0]){int delta=bounds[0]-x;sx+=delta;width-=delta;x+=delta;}
+    if(y<bounds[1]){int delta=bounds[1]-y;sy+=delta;height-=delta;y+=delta;}
+    if(x+width>bounds[2])width=bounds[2]-x;
+    if(y+height>bounds[3])height=bounds[3]-y;
+    if(width<=0||height<=0)return 0;
     dsubimage(x,y,img,sx,sy,width,height,DIMAGE_NONE);
     return 0;
 }
