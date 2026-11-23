@@ -6,6 +6,7 @@
 #include "toybox_abi.h"
 #include "browser.h"
 #include "gint_draw.h"
+#include "gint_image.h"
 #include <gint/keyboard.h>
 #include <gint/keycodes.h>
 #include <gint/rtc.h>
@@ -349,6 +350,90 @@ static JSValue js_gint_cleareventflips(JSContext *ctx,JSValue *th,int argc,JSVal
     cleareventflips();
     return JS_UNDEFINED;
 }
+/* Image constructors decode the JS palette once, then store a bounded native
+   RGB565 image. Subsequent tilemap draws call native dsubimage(), not hundreds
+   of individual drect() callbacks. Image IDs are never native pointers. */
+static JSValue js_gint_image_rgb565(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int w,h;
+    if(int_arg(ctx,argc,argv,0,&w)||int_arg(ctx,argc,argv,1,&h))
+        return JS_EXCEPTION;
+    if(argc<3||!JS_IsArray(ctx,argv[2]))return JS_ThrowTypeError(ctx,
+        "image_rgb565(width,height,flatPixelArray)");
+    if(w<1||h<1||w>256||h>256)return JS_ThrowRangeError(ctx,
+        "image dimensions must be 1..256");
+    JSValue lv=JS_GetPropertyStr(ctx,argv[2],"length");
+    int length;
+    if(JS_IsException(lv)||JS_ToInt32(ctx,&length,lv))return JS_EXCEPTION;
+    if(length!=w*h)return JS_ThrowRangeError(ctx,
+        "image array length must equal width*height");
+    int id=qjs_image_create(w,h);
+    if(id<0)return JS_ThrowRangeError(ctx,
+        "image cache full (24 sprites / 128 KiB)");
+    for(int i=0;i<length;i++){
+        JSValue v=JS_GetPropertyUint32(ctx,argv[2],(uint32_t)i);
+        int pixel;
+        if(JS_IsException(v)||JS_ToInt32(ctx,&pixel,v))return JS_EXCEPTION;
+        if(qjs_image_set_pixel(id,i,(unsigned)pixel))return JS_EXCEPTION;
+    }
+    JSValue obj=JS_NewObject(ctx);
+    if(JS_IsException(obj))return obj;
+    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"id",JS_NewInt32(ctx,id)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"width",JS_NewInt32(ctx,w)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"height",JS_NewInt32(ctx,h))))
+        return JS_EXCEPTION;
+    return obj;
+}
+static int image_arg(JSContext *ctx,int argc,JSValue *argv,int index,int *id)
+{
+    if(index>=argc)return -1;
+    JSValue v=JS_GetPropertyStr(ctx,argv[index],"id");
+    if(JS_IsException(v)||JS_ToInt32(ctx,id,v))return -1;
+    return *id>0?0:-1;
+}
+static JSValue js_gint_dimage(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y,id,w,h;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||
+       coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
+    if(image_arg(ctx,argc,argv,2,&id))return JS_ThrowTypeError(ctx,"dimage(x,y,image)");
+    JSValue wv=JS_GetPropertyStr(ctx,argv[2],"width");
+    JSValue hv=JS_GetPropertyStr(ctx,argv[2],"height");
+    if(JS_IsException(wv)||JS_IsException(hv)||
+       JS_ToInt32(ctx,&w,wv)||JS_ToInt32(ctx,&h,hv))return JS_EXCEPTION;
+    if(qjs_image_draw(id,x,y,0,0,w,h))return JS_ThrowRangeError(ctx,"invalid image");
+    graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dsubimage(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y,id,sx,sy,w,h;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||
+       coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
+    if(image_arg(ctx,argc,argv,2,&id))return JS_ThrowTypeError(ctx,
+        "dsubimage(x,y,image,sx,sy,width,height)");
+    if(coordinate_arg(ctx,argc,argv,3,&sx)||
+       coordinate_arg(ctx,argc,argv,4,&sy)||
+       int_arg(ctx,argc,argv,5,&w)||
+       int_arg(ctx,argc,argv,6,&h))return JS_EXCEPTION;
+    if(qjs_image_draw(id,x,y,sx,sy,w,h))
+        return JS_ThrowRangeError(ctx,"invalid image source region");
+    graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dgetpixel(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||
+       coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
+    if(!host||x<0||y<0||x>=(int)host->width||y>=(int)host->height)
+        return JS_NewInt32(ctx,-1);
+    return JS_NewInt32(ctx,dgetpixel(x,y));
+}
 static JSValue js_gint_dclear(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
     (void)th;
@@ -457,6 +542,7 @@ static int read_source(const char *path,char **out,size_t *length)
 int main(void)
 {
     if(!host || !host->read)return -1;
+    qjs_image_reset();
     stage("Payload initialized");
     char path[EDL_PATH_MAX]={0};
     if(shell && shell->argc>=2){
@@ -526,6 +612,7 @@ int main(void)
     if(JS_IsException(value))goto error;
     JS_PopGCRef(ctx,&program_ref);
     JS_FreeContext(ctx);
+    qjs_image_reset();
     free(source);
     free(memory);
     return 0;
