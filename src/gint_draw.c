@@ -79,7 +79,14 @@ void qjs_draw_rect_border(int x1,int y1,int x2,int y2,int fill,int width,int bor
     if(x1>x2){int t=x1;x1=x2;x2=t;}
     if(y1>y2){int t=y1;y1=y2;y2=t;}
     if(width<0)width=0;
-    if(width && border>=0)native_rect(x1,y1,x2,y2,border);
+    if(width && border>=0){
+        /* Four clipped edge strips, not a solid outer rectangle:
+           a transparent C_NONE interior must remain transparent. */
+        native_rect(x1,y1,x2,y1+width-1,border);
+        native_rect(x1,y2-width+1,x2,y2,border);
+        native_rect(x1,y1+width,x1+width-1,y2-width,border);
+        native_rect(x2-width+1,y1+width,x2,y2-width,border);
+    }
     if(fill>=0){
         int inset=(width && border>=0)?width:0;
         native_rect(x1+inset,y1+inset,x2-inset,y2-inset,fill);
