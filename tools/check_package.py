@@ -64,10 +64,10 @@ for i in range(section_count):
         elif u16(at + 14):
             defined.add(name)
 assert imports, "expected hosted gint import symbols"
-assert {"_edl_native_dsubimage", "_edl_native_dgetpixel", "_dline", "_dpixel"} <= imports, (
+assert {"_edl_native_dsubimage", "_edl_native_dgetpixel", "_edl_native_dline", "_edl_native_dpixel"} <= imports, (
     "native sprite and pixel calls must resolve through resident gint"
 )
-assert not {"_dsubimage", "_dgetpixel"} & defined, (
+assert not {"_dsubimage", "_dgetpixel", "_dline", "_dpixel"} & defined, (
     "forbid private duplicate graphics implementations in the EDL"
 )
 assert not {"_start", "_exword_entry", "_gint_kernel_install", "_mmu_exword_prepare"} & defined
