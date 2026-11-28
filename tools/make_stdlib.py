@@ -30,6 +30,7 @@ static const JSPropDef exword_gint_props[] = {
     JS_CFUNC_DEF("dwindow_set", 4, js_gint_dwindow_set),
     JS_CFUNC_DEF("dwindow_get", 0, js_gint_dwindow_get),
     JS_CFUNC_DEF("dupdate", 0, js_gint_dupdate),
+    JS_CFUNC_DEF("ticks", 0, js_gint_ticks),
     JS_CFUNC_DEF("getkey", 0, js_gint_getkey),
     JS_CFUNC_DEF("getkeyevent", 1, js_gint_getkeyevent),
     JS_CFUNC_DEF("pollevent", 0, js_gint_pollevent),
