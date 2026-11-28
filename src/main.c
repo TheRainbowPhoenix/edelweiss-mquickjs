@@ -502,6 +502,13 @@ static JSValue js_gint_drect(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
     graphics_started=1;
     return JS_UNDEFINED;
 }
+/* Cheap 128 Hz monotonic-in-day timebase for on-device JS benchmarks.
+   No allocation, no Date/OS clock dependency. Wraps at midnight. */
+static JSValue js_gint_ticks(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;(void)argc;(void)argv;
+    return JS_NewInt32(ctx,(int32_t)rtc_ticks());
+}
 static JSValue js_gint_dupdate(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
     (void)ctx;(void)th;(void)argc;(void)argv;

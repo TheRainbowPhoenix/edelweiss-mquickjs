@@ -5,7 +5,7 @@ if(NOT FXSDK_PLATFORM_LONG STREQUAL "exword")
 endif()
 
 # Keep this branch to follow the latest EX-word runtime, or pin a commit/tag.
-set(EDELWEISS_REF "4e411ee52edd8f564ffb1647f1b95e1c9fc7db04" CACHE STRING "Upstream Edelweiss branch, tag or commit")
+set(EDELWEISS_REF "72633557214d2ccaae671717d821a1d4e2f230f9" CACHE STRING "Upstream Edelweiss branch, tag or commit")
 set(EXWORD_APP_ID "QJSJS" CACHE STRING "Five-character dictionary installation ID")
 set(EXWORD_MODULE "qjs" CACHE STRING "D01 filename without its extension")
 set(EXWORD_HEAP_SIZE "393216" CACHE STRING "Payload-local gint heap in bytes")
@@ -125,6 +125,12 @@ foreach(LOCALE IN ITEMS ja cn)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/GCROOT.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/GCROOT.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/VMSTRESS.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/VMSTRESS.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/VMBENCH.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/VMBENCH.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/TOUCH.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/TOUCH.JS"
