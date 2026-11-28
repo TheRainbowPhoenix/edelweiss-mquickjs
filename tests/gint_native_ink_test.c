@@ -43,9 +43,9 @@ int main(void)
     qjs_draw_pixel(3,3,0); /* logical clip exclusion */
     assert(native_pixels==1 && host_rects==0);
 
-    /* Endpoint outside clip forces safe Bresenham/software fallback, yet
+    /* Diagonal endpoint outside clip forces safe Bresenham fallback, yet
        every individual in-clip pixel still uses resident native dpixel. */
-    qjs_draw_line(0,6,17,6,0);
+    qjs_draw_line(0,6,17,15,0);
     assert(native_lines==2);
     assert(native_pixels>1);
     /* C_NONE must never reach the native routines. */
