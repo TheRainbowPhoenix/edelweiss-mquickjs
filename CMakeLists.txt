@@ -65,14 +65,25 @@ add_custom_command(
     "${mquickjs_SOURCE_DIR}/mquickjs_build.c"
     "${mquickjs_SOURCE_DIR}/mquickjs_build.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/make_stdlib.py" VERBATIM)
-add_custom_target(qjs_codegen DEPENDS "${JS_STDLIB_HEADER}" "${JS_ATOM_HEADER}")
+# The stock MQuickJS GC mistakes SH3EB bitfield object headers for
+# forwarded pointers during compaction. Build a checked, target-specific
+# source copy rather than modifying upstream FetchContent checkout.
+set(MQUICKJS_GC_SOURCE "${GENERATED}/mquickjs_sh3eb_gc.c")
+add_custom_command(
+  OUTPUT "${MQUICKJS_GC_SOURCE}"
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_mquickjs_gc.py"
+    "${mquickjs_SOURCE_DIR}/mquickjs.c" "${MQUICKJS_GC_SOURCE}"
+  DEPENDS "${mquickjs_SOURCE_DIR}/mquickjs.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_mquickjs_gc.py"
+  VERBATIM)
+add_custom_target(qjs_codegen DEPENDS "${JS_STDLIB_HEADER}" "${JS_ATOM_HEADER}" "${MQUICKJS_GC_SOURCE}")
 
 add_gint_edl(qjs
   src/main.c
   src/browser.c
   src/gint_draw.c
   src/gint_image.c
-  "${mquickjs_SOURCE_DIR}/mquickjs.c"
+  "${MQUICKJS_GC_SOURCE}"
   "${mquickjs_SOURCE_DIR}/dtoa.c"
   "${mquickjs_SOURCE_DIR}/libm.c"
   "${mquickjs_SOURCE_DIR}/cutils.c")
