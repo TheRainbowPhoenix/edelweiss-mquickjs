@@ -1,47 +1,82 @@
 #!/usr/bin/env python3
-"""Patch the upstream MQuickJS threaded GC for the EX-word SH3EB ABI.
+"""Patch MQuickJS's threaded moving GC for 32-bit big-endian SuperH.
 
-On big-endian SH, the first word of an ordinary heap object contains
-gc_mark/mtag in the HIGH bits and class_id/extra_size in lower bits.
-For example, JSObject(class_id=2, extra_size=1) has 0x10200001.
+The Jonkers algorithm temporarily replaces each heap object header with
+a linked list of JSValue* ref slots. Crucially, the *last* link is the
+original object's header word. On SH3EB, an ordinary JSObject header
+with class_id=2 and extra_size=1 equals 0x10200001; low two bits look
+like a tagged JS pointer, but 0x10200000 is not mapped.
 
-MQuickJS's Jonkers compactor sees any value with bits 0..1 = 01 as a
-threaded JS pointer. It therefore mistakes 0x10200001 for a pointer
-and dereferences 0x10200000, raising a 040 TLB miss.
+Both the initial test and EVERY link in the unthreading loop must use
+a predicate that distinguishes P1/P2 pointers (bit31=1) from object
+headers (bit31=0). Otherwise the first GC patch works once, then
+fails after the first referenced object when the loop reaches the
+original header (observed 040/PC=8c8046e4/TEA=10200000).
 
-This workaround is specific to EX-word SH3EB: genuine GC reference
-slots are in P1/P2 memory (bit 31 set), while all normal marked-clean
-GC block headers have their top bit clear. The mark pass always resets
-gc_mark before gc_compact_heap() walks the heap.
-
-Fail closed if the upstream code being patched ever changes.
+Keep the workaround target-specific; fail closed if upstream changes.
 """
 from __future__ import annotations
 
 import pathlib
 import sys
 
-OLD = """    val = *(JSValue *)ptr;
+OLD = """static void gc_update_threaded_pointers(JSContext *ctx,
+                                        void *ptr, void *new_ptr)
+{
+    JSValue val, *pv;
+
+    val = *(JSValue *)ptr;
     if (JS_IsPtr(val)) {
         /* update the threaded pointers to the node 'ptr' and
            unthread it. */
+        for(;;) {
+            pv = js_value_to_pval(ctx, val);
+            val = *pv;
+            *pv = JS_VALUE_FROM_PTR(new_ptr);
+            if (!JS_IsPtr(val))
+                break;
+        }
+        *(JSValue *)ptr = val;
+    }
+}
 """
 
-NEW = """    val = *(JSValue *)ptr;
+NEW = """/* The original header of a JS heap object terminates the threaded
+   pointer list. On SH3EB its low bits can look like JSValue's '01'
+   pointer tag. The actual JSValue* link addresses for this platform
+   are in P1/P2 RAM (>= 0x80000000). Check at EVERY link: it is not
+   sufficient to check only the first element before the loop. */
+static BOOL gc_is_thread_link(JSValue val)
+{
+    if (!JS_IsPtr(val))
+        return FALSE;
 #if defined(__sh__) && defined(__BYTE_ORDER__) && \\
     (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) && (UINTPTR_MAX == UINT32_MAX)
-    /* On SH3EB, ordinary GC headers may end in '01'. For example,
-       0x10200001 = object, class_id=2, extra_size=1.
-       JS_IsPtr(0x10200001) is TRUE even though the word is a
-       header, not a threaded pointer. Forwarded pointer slots in
-       this EX-word resident live in P1/P2 (bit 31 set).
-       gc_mark was cleared before this compaction pass. */
     if (!(val & UINT32_C(0x80000000)))
-        return;
+        return FALSE;
 #endif
-    if (JS_IsPtr(val)) {
+    return TRUE;
+}
+
+static void gc_update_threaded_pointers(JSContext *ctx,
+                                        void *ptr, void *new_ptr)
+{
+    JSValue val, *pv;
+
+    val = *(JSValue *)ptr;
+    if (gc_is_thread_link(val)) {
         /* update the threaded pointers to the node 'ptr' and
            unthread it. */
+        for(;;) {
+            pv = js_value_to_pval(ctx, val);
+            val = *pv;
+            *pv = JS_VALUE_FROM_PTR(new_ptr);
+            if (!gc_is_thread_link(val))
+                break;
+        }
+        *(JSValue *)ptr = val;
+    }
+}
 """
 
 def patch(source: str) -> str:
