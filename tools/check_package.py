@@ -27,6 +27,8 @@ for locale in ("ja", "cn"):
     assert (package / "ARGS.JS").is_file()
     assert (package / "GFX.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "GFX.JS").read_bytes()
     assert (package / "GCROOT.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "GCROOT.JS").read_bytes()
+    assert (package / "VMSTRESS.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "VMSTRESS.JS").read_bytes()
+    assert (package / "VMBENCH.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "VMBENCH.JS").read_bytes()
     assert (package / "TOUCH.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "TOUCH.JS").read_bytes()
     assert (package / "FLAGS.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "FLAGS.JS").read_bytes()
     assert (package / "TILES.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "TILES.JS").read_bytes()
@@ -62,7 +64,7 @@ for i in range(section_count):
         elif u16(at + 14):
             defined.add(name)
 assert imports, "expected hosted gint import symbols"
-assert {"_edl_native_dsubimage", "_edl_native_dgetpixel"} <= imports, (
+assert {"_edl_native_dsubimage", "_edl_native_dgetpixel", "_dline", "_dpixel"} <= imports, (
     "native sprite and pixel calls must resolve through resident gint"
 )
 assert not {"_dsubimage", "_dgetpixel"} & defined, (
