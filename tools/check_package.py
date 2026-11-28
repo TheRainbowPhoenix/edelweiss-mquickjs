@@ -25,6 +25,11 @@ for locale in ("ja", "cn"):
     assert (package / "main.edl").read_bytes() == payload
     assert (package / "DEMO.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "DEMO.JS").read_bytes()
     assert (package / "ARGS.JS").is_file()
+    assert (package / "GFX.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "GFX.JS").read_bytes()
+    assert (package / "TOUCH.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "TOUCH.JS").read_bytes()
+    assert (package / "FLAGS.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "FLAGS.JS").read_bytes()
+    assert (package / "TILES.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "TILES.JS").read_bytes()
+    assert (package / "DINO.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "DINO.JS").read_bytes()
     assert (package / "SCRIPTS.TXT").is_file()
     assert (package / "fileinfo.cji").is_file()
     html = list(package.glob("*.htm"))
@@ -56,6 +61,12 @@ for i in range(section_count):
         elif u16(at + 14):
             defined.add(name)
 assert imports, "expected hosted gint import symbols"
+assert {"_edl_native_dsubimage", "_edl_native_dgetpixel"} <= imports, (
+    "native sprite and pixel calls must resolve through resident gint"
+)
+assert not {"_dsubimage", "_dgetpixel"} & defined, (
+    "forbid private duplicate graphics implementations in the EDL"
+)
 assert not {"_start", "_exword_entry", "_gint_kernel_install", "_mmu_exword_prepare"} & defined
 print("Hosted gint imports verified; no second kernel/startup in qjs.edl")
 # The CMD1 applet section must be a non-allocated 396-byte PROGBITS object.

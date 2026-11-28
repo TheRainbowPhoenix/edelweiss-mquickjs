@@ -5,6 +5,14 @@
 #include "edl.h"
 #include "toybox_abi.h"
 #include "browser.h"
+#include "gint_draw.h"
+#include "gint_image.h"
+#include "gint_hosted.h"
+#include <gint/keyboard.h>
+#include <gint/keycodes.h>
+#include <gint/rtc.h>
+#include <gint/display.h>
+#include <gint/image.h>
 #include "mquickjs.h"
 #include <stdlib.h>
 #include <stdint.h>
@@ -50,6 +58,7 @@ void __wrap_edl_gint_set_api(const struct edl_api *api)
 {
     host=api;
     shell=toybox_api(api);
+    qjs_draw_init(api);
     __real_edl_gint_set_api(api);
 }
 
@@ -128,15 +137,311 @@ static int color_arg(JSContext *ctx,int argc,JSValue *argv,int i,int *out)
     *out&=65535;
     return 0;
 }
+/* Drawing is bounded so an untrusted JS coordinate cannot force a multi-
+   million iteration raster loop or overflow 32-bit geometry calculations. */
+static int coordinate_arg(JSContext *ctx,int argc,JSValue *argv,int i,int *out)
+{
+    if(int_arg(ctx,argc,argv,i,out))return -1;
+    if(*out < -4096 || *out > 4096){
+        JS_ThrowRangeError(ctx,"coordinate must be -4096..4096");
+        return -1;
+    }
+    return 0;
+}
+static int color_or_none(JSContext *ctx,int argc,JSValue *argv,int i,int *out)
+{
+    if(int_arg(ctx,argc,argv,i,out))return -1;
+    if(*out == -1)return 0; /* C_NONE for fill and border */
+    *out &= 65535;
+    return 0;
+}
+static JSValue js_gint_dpixel(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y,c;
+    if(coordinate_arg(ctx,argc,argv,0,&x) || coordinate_arg(ctx,argc,argv,1,&y) ||
+       color_arg(ctx,argc,argv,2,&c))return JS_EXCEPTION;
+    qjs_draw_pixel(x,y,c);graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dline(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x1,y1,x2,y2,c;
+    if(coordinate_arg(ctx,argc,argv,0,&x1)||coordinate_arg(ctx,argc,argv,1,&y1)||
+       coordinate_arg(ctx,argc,argv,2,&x2)||coordinate_arg(ctx,argc,argv,3,&y2)||
+       color_arg(ctx,argc,argv,4,&c))return JS_EXCEPTION;
+    qjs_draw_line(x1,y1,x2,y2,c);graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dhline(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int y,c;
+    if(coordinate_arg(ctx,argc,argv,0,&y)||color_arg(ctx,argc,argv,1,&c))
+        return JS_EXCEPTION;
+    qjs_draw_hline(y,c);graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dvline(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,c;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||color_arg(ctx,argc,argv,1,&c))
+        return JS_EXCEPTION;
+    qjs_draw_vline(x,c);graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_drect_border(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x1,y1,x2,y2,fill,width,border;
+    if(coordinate_arg(ctx,argc,argv,0,&x1)||coordinate_arg(ctx,argc,argv,1,&y1)||
+       coordinate_arg(ctx,argc,argv,2,&x2)||coordinate_arg(ctx,argc,argv,3,&y2)||
+       color_or_none(ctx,argc,argv,4,&fill)||int_arg(ctx,argc,argv,5,&width)||
+       color_or_none(ctx,argc,argv,6,&border))return JS_EXCEPTION;
+    if(width<0||width>4096)return JS_ThrowRangeError(ctx,"border width: 0..4096");
+    qjs_draw_rect_border(x1,y1,x2,y2,fill,width,border);
+    graphics_started=1;return JS_UNDEFINED;
+}
+static JSValue js_gint_dcircle(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y,r,fill,border;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||coordinate_arg(ctx,argc,argv,1,&y)||
+       int_arg(ctx,argc,argv,2,&r)||color_or_none(ctx,argc,argv,3,&fill)||
+       color_or_none(ctx,argc,argv,4,&border))return JS_EXCEPTION;
+    if(r<0||r>4096)return JS_ThrowRangeError(ctx,"circle radius: 0..4096");
+    qjs_draw_circle(x,y,r,fill,border);
+    graphics_started=1;return JS_UNDEFINED;
+}
+static JSValue js_gint_dellipse(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x1,y1,x2,y2,fill,border;
+    if(coordinate_arg(ctx,argc,argv,0,&x1)||coordinate_arg(ctx,argc,argv,1,&y1)||
+       coordinate_arg(ctx,argc,argv,2,&x2)||coordinate_arg(ctx,argc,argv,3,&y2)||
+       color_or_none(ctx,argc,argv,4,&fill)||
+       color_or_none(ctx,argc,argv,5,&border))return JS_EXCEPTION;
+    qjs_draw_ellipse(x1,y1,x2,y2,fill,border);
+    graphics_started=1;return JS_UNDEFINED;
+}
+static JSValue js_gint_dwindow_set(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int b[4];
+    for(int i=0;i<4;i++)if(coordinate_arg(ctx,argc,argv,i,&b[i]))return JS_EXCEPTION;
+    qjs_draw_window(b[0],b[1],b[2],b[3]);
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dwindow_get(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;(void)argc;(void)argv;
+    int b[4];qjs_draw_get_window(b);
+    JSValue array=JS_NewArray(ctx,4);
+    if(JS_IsException(array))return array;
+    for(unsigned i=0;i<4;i++)
+        if(JS_IsException(JS_SetPropertyUint32(ctx,array,i,JS_NewInt32(ctx,b[i]))))
+            return JS_EXCEPTION;
+    return array;
+}
+static JSValue js_gint_dpoly(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int fill,border;
+    if(argc<3 || !JS_IsArray(ctx,argv[0]))return JS_ThrowTypeError(ctx,
+        "dpoly([x0,y0,...],fill,border)");
+    if(color_or_none(ctx,argc,argv,1,&fill)||
+       color_or_none(ctx,argc,argv,2,&border))return JS_EXCEPTION;
+    JSValue len_value=JS_GetPropertyStr(ctx,argv[0],"length");
+    int n=0;
+    if(JS_IsException(len_value) || JS_ToInt32(ctx,&n,len_value))return JS_EXCEPTION;
+    if(n<6 || n>64 || (n&1))return JS_ThrowRangeError(ctx,
+        "dpoly requires 3..32 coordinate pairs");
+    int xy[64];
+    for(int i=0;i<n;i++){
+        JSValue v=JS_GetPropertyUint32(ctx,argv[0],(uint32_t)i);
+        if(JS_IsException(v) || JS_ToInt32(ctx,&xy[i],v))return JS_EXCEPTION;
+        if(xy[i]<-4096 || xy[i]>4096)return JS_ThrowRangeError(ctx,
+            "polygon coordinates must be -4096..4096");
+    }
+    qjs_draw_poly(xy,(unsigned)n/2,fill,border);
+    graphics_started=1;return JS_UNDEFINED;
+}
+static JSValue js_gint_C_RGB(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int r,g,b;
+    if(int_arg(ctx,argc,argv,0,&r)||int_arg(ctx,argc,argv,1,&g)||
+       int_arg(ctx,argc,argv,2,&b))return JS_EXCEPTION;
+    return JS_NewInt32(ctx,((r&31)<<11)|((g&63)<<5)|(b&31));
+}
+/* These are native gint key events, not the legacy EDL semantic actions.
+   Unlike the v1 wait callback, raw events include TOUCH_DRAG, TOUCH_UP,
+   physical key codes, shift/alpha and time (like PythonExtra). */
+static JSValue js_event_object(JSContext *ctx,key_event_t e)
+{
+    JSValue obj=JS_NewObject(ctx);
+    if(JS_IsException(obj))return obj;
+    const char *fields[]={"type","key","x","y","time"};
+    int touch=e.type==KEYEV_TOUCH_DOWN || e.type==KEYEV_TOUCH_UP ||
+              e.type==KEYEV_TOUCH_DRAG;
+    int values[]={e.type,touch?0:e.key,touch?e.x:0,touch?e.y:0,e.time};
+    for(unsigned i=0;i<5;i++)
+        if(JS_IsException(JS_SetPropertyStr(ctx,obj,fields[i],
+                          JS_NewInt32(ctx,values[i]))))return JS_EXCEPTION;
+    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"shift",JS_NewBool(!touch&&e.shift)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"alpha",JS_NewBool(!touch&&e.alpha)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"mod",JS_NewBool(!touch&&e.mod))))
+        return JS_EXCEPTION;
+    return obj;
+}
+static JSValue js_gint_getkeyevent(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int timeout=0;
+    if(argc && int_arg(ctx,argc,argv,0,&timeout))return JS_EXCEPTION;
+    if(timeout<0||timeout>60000)return JS_ThrowRangeError(ctx,
+        "getkeyevent timeout: 0..60000ms");
+    if(timeout==0)return js_event_object(ctx,waitevent(NULL));
+    uint32_t begin=rtc_ticks(),limit=((unsigned)timeout*128u+999u)/1000u;
+    for(;;){
+        key_event_t ev=pollevent();
+        if(ev.type!=KEYEV_NONE)return js_event_object(ctx,ev);
+        uint32_t now=rtc_ticks(),day=128u*86400u;
+        uint32_t elapsed=now>=begin?now-begin:day-begin+now;
+        if(elapsed>=limit)return js_event_object(ctx,ev);
+    }
+}
+static JSValue js_gint_pollevent(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;(void)argc;(void)argv;
+    return js_event_object(ctx,pollevent());
+}
+static JSValue js_gint_keydown(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int key;
+    if(int_arg(ctx,argc,argv,0,&key))return JS_EXCEPTION;
+    return JS_NewBool(keydown(key)!=0);
+}
+static JSValue js_gint_keypressed(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int key;
+    if(int_arg(ctx,argc,argv,0,&key))return JS_EXCEPTION;
+    return JS_NewBool(keypressed(key)!=0);
+}
+static JSValue js_gint_keyreleased(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int key;
+    if(int_arg(ctx,argc,argv,0,&key))return JS_EXCEPTION;
+    return JS_NewBool(keyreleased(key)!=0);
+}
+static JSValue js_gint_clearevents(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)ctx;(void)th;(void)argc;(void)argv;
+    clearevents();
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_cleareventflips(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)ctx;(void)th;(void)argc;(void)argv;
+    cleareventflips();
+    return JS_UNDEFINED;
+}
+/* Image constructors decode the JS palette once, then store a bounded native
+   RGB565 image. Subsequent tilemap draws call native dsubimage(), not hundreds
+   of individual drect() callbacks. Image IDs are never native pointers. */
+static JSValue js_gint_image_rgb565(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int w,h;
+    if(int_arg(ctx,argc,argv,0,&w)||int_arg(ctx,argc,argv,1,&h))
+        return JS_EXCEPTION;
+    if(argc<3||!JS_IsArray(ctx,argv[2]))return JS_ThrowTypeError(ctx,
+        "image_rgb565(width,height,flatPixelArray)");
+    if(w<1||h<1||w>256||h>256)return JS_ThrowRangeError(ctx,
+        "image dimensions must be 1..256");
+    JSValue lv=JS_GetPropertyStr(ctx,argv[2],"length");
+    int length;
+    if(JS_IsException(lv)||JS_ToInt32(ctx,&length,lv))return JS_EXCEPTION;
+    if(length!=w*h)return JS_ThrowRangeError(ctx,
+        "image array length must equal width*height");
+    int id=qjs_image_create(w,h);
+    if(id<0)return JS_ThrowRangeError(ctx,
+        "image cache full (24 sprites / 128 KiB)");
+    for(int i=0;i<length;i++){
+        JSValue v=JS_GetPropertyUint32(ctx,argv[2],(uint32_t)i);
+        int pixel;
+        if(JS_IsException(v)||JS_ToInt32(ctx,&pixel,v))return JS_EXCEPTION;
+        if(qjs_image_set_pixel(id,i,(unsigned)pixel))return JS_EXCEPTION;
+    }
+    JSValue obj=JS_NewObject(ctx);
+    if(JS_IsException(obj))return obj;
+    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"id",JS_NewInt32(ctx,id)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"width",JS_NewInt32(ctx,w)))||
+       JS_IsException(JS_SetPropertyStr(ctx,obj,"height",JS_NewInt32(ctx,h))))
+        return JS_EXCEPTION;
+    return obj;
+}
+static int image_arg(JSContext *ctx,int argc,JSValue *argv,int index,int *id)
+{
+    if(index>=argc)return -1;
+    JSValue v=JS_GetPropertyStr(ctx,argv[index],"id");
+    if(JS_IsException(v)||JS_ToInt32(ctx,id,v))return -1;
+    return *id>0?0:-1;
+}
+static JSValue js_gint_dimage(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y,id,w,h;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||
+       coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
+    if(image_arg(ctx,argc,argv,2,&id))return JS_ThrowTypeError(ctx,"dimage(x,y,image)");
+    JSValue wv=JS_GetPropertyStr(ctx,argv[2],"width");
+    JSValue hv=JS_GetPropertyStr(ctx,argv[2],"height");
+    if(JS_IsException(wv)||JS_IsException(hv)||
+       JS_ToInt32(ctx,&w,wv)||JS_ToInt32(ctx,&h,hv))return JS_EXCEPTION;
+    if(qjs_image_draw(id,x,y,0,0,w,h))return JS_ThrowRangeError(ctx,"invalid image");
+    graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dsubimage(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y,id,sx,sy,w,h;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||
+       coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
+    if(image_arg(ctx,argc,argv,2,&id))return JS_ThrowTypeError(ctx,
+        "dsubimage(x,y,image,sx,sy,width,height)");
+    if(coordinate_arg(ctx,argc,argv,3,&sx)||
+       coordinate_arg(ctx,argc,argv,4,&sy)||
+       int_arg(ctx,argc,argv,5,&w)||
+       int_arg(ctx,argc,argv,6,&h))return JS_EXCEPTION;
+    if(qjs_image_draw(id,x,y,sx,sy,w,h))
+        return JS_ThrowRangeError(ctx,"invalid image source region");
+    graphics_started=1;
+    return JS_UNDEFINED;
+}
+static JSValue js_gint_dgetpixel(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
+{
+    (void)th;
+    int x,y;
+    if(coordinate_arg(ctx,argc,argv,0,&x)||
+       coordinate_arg(ctx,argc,argv,1,&y))return JS_EXCEPTION;
+    if(!host||x<0||y<0||x>=(int)host->width||y>=(int)host->height)
+        return JS_NewInt32(ctx,-1);
+    return JS_NewInt32(ctx,edl_native_dgetpixel(x,y));
+}
 static JSValue js_gint_dclear(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
     (void)th;
     int color=PAPER;
     if(argc && color_arg(ctx,argc,argv,0,&color))return JS_EXCEPTION;
-    if(host && host->rect) {
-        host->rect(0,0,(int)host->width,(int)host->height,(uint16_t)color);
-        graphics_started=1;
-    }
+    qjs_draw_clear(color);
+    graphics_started=1;
     return JS_UNDEFINED;
 }
 static JSValue js_gint_dtext(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
@@ -157,20 +462,13 @@ static JSValue js_gint_drect(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
     (void)th;
     int x1,y1,x2,y2,c;
-    if(int_arg(ctx,argc,argv,0,&x1) || int_arg(ctx,argc,argv,1,&y1) ||
-       int_arg(ctx,argc,argv,2,&x2) || int_arg(ctx,argc,argv,3,&y2) ||
-       color_arg(ctx,argc,argv,4,&c)) return JS_EXCEPTION;
-    if(host && host->rect) {
-        /* Host rect() requires an entirely in-bounds rectangle. Clip first. */
-        if(x1>x2){int t=x1;x1=x2;x2=t;}
-        if(y1>y2){int t=y1;y1=y2;y2=t;}
-        if(x1<0)x1=0; if(y1<0)y1=0;
-        if(x2>=(int)host->width)x2=(int)host->width-1;
-        if(y2>=(int)host->height)y2=(int)host->height-1;
-        if(x1<=x2 && y1<=y2)
-            host->rect(x1,y1,x2-x1+1,y2-y1+1,(uint16_t)c);
-        graphics_started=1;
-    }
+    if(coordinate_arg(ctx,argc,argv,0,&x1)||
+       coordinate_arg(ctx,argc,argv,1,&y1)||
+       coordinate_arg(ctx,argc,argv,2,&x2)||
+       coordinate_arg(ctx,argc,argv,3,&y2)||
+       color_arg(ctx,argc,argv,4,&c))return JS_EXCEPTION;
+    qjs_draw_rect(x1,y1,x2,y2,c);
+    graphics_started=1;
     return JS_UNDEFINED;
 }
 static JSValue js_gint_dupdate(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
@@ -245,6 +543,7 @@ static int read_source(const char *path,char **out,size_t *length)
 int main(void)
 {
     if(!host || !host->read)return -1;
+    qjs_image_reset();
     stage("Payload initialized");
     char path[EDL_PATH_MAX]={0};
     if(shell && shell->argc>=2){
@@ -314,6 +613,7 @@ int main(void)
     if(JS_IsException(value))goto error;
     JS_PopGCRef(ctx,&program_ref);
     JS_FreeContext(ctx);
+    qjs_image_reset();
     free(source);
     free(memory);
     return 0;

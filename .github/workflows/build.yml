@@ -26,6 +26,11 @@ jobs:
         run: |
           python3 -m py_compile tools/make_stdlib.py tools/check_package.py
           python3 -m unittest discover -s tests -p 'test_stdlib_endian.py'
+      - name: Verify all bundled ES5-style demo syntax
+        run: |
+          for source in examples/*.JS; do
+            node --check < "$source"
+          done
   build:
     runs-on: ubuntu-latest
     container:
@@ -35,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: TheRainbowPhoenix/Edelweiss
-          ref: ${{ inputs.edelweiss_ref || 'edelweiss' }}
+          ref: ${{ inputs.edelweiss_ref || '4e411ee52edd8f564ffb1647f1b95e1c9fc7db04' }}
           path: dependencies/edelweiss
       - uses: actions/checkout@v4
         with:
@@ -75,6 +80,15 @@ jobs:
             -Idependencies/edelweiss/sdk \
             src/browser.c tests/browser_test.c -o /tmp/qjs-browser-test
           /tmp/qjs-browser-test
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude -Isrc \
+            -Idependencies/edelweiss/sdk \
+            src/gint_draw.c tests/gint_draw_test.c -o /tmp/qjs-gint-draw-test
+          /tmp/qjs-gint-draw-test
+          cc -std=c11 -Wall -Wextra -Werror -Itests/stubs -Iinclude -Isrc \
+            -Idependencies/edelweiss/sdk \
+            src/gint_image.c src/gint_draw.c tests/gint_image_test.c \
+            -o /tmp/qjs-gint-image-test
+          /tmp/qjs-gint-image-test
       - name: Build MQuickJS with Edelweiss and generated 32-bit stdlib
         shell: bash
         run: |

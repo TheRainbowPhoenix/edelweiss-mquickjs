@@ -5,7 +5,7 @@ if(NOT FXSDK_PLATFORM_LONG STREQUAL "exword")
 endif()
 
 # Keep this branch to follow the latest EX-word runtime, or pin a commit/tag.
-set(EDELWEISS_REF "edelweiss" CACHE STRING "Upstream Edelweiss branch, tag or commit")
+set(EDELWEISS_REF "4e411ee52edd8f564ffb1647f1b95e1c9fc7db04" CACHE STRING "Upstream Edelweiss branch, tag or commit")
 set(EXWORD_APP_ID "QJSJS" CACHE STRING "Five-character dictionary installation ID")
 set(EXWORD_MODULE "qjs" CACHE STRING "D01 filename without its extension")
 set(EXWORD_HEAP_SIZE "393216" CACHE STRING "Payload-local gint heap in bytes")
@@ -70,6 +70,8 @@ add_custom_target(qjs_codegen DEPENDS "${JS_STDLIB_HEADER}" "${JS_ATOM_HEADER}")
 add_gint_edl(qjs
   src/main.c
   src/browser.c
+  src/gint_draw.c
+  src/gint_image.c
   "${mquickjs_SOURCE_DIR}/mquickjs.c"
   "${mquickjs_SOURCE_DIR}/dtoa.c"
   "${mquickjs_SOURCE_DIR}/libm.c"
@@ -109,6 +111,21 @@ foreach(LOCALE IN ITEMS ja cn)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/DEMO.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/DEMO.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/TOUCH.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/TOUCH.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/FLAGS.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/FLAGS.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/TILES.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/TILES.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/DINO.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/DINO.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/GFX.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/GFX.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/ARGS.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/ARGS.JS"
