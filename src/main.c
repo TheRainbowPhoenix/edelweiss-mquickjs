@@ -238,12 +238,21 @@ static JSValue js_gint_dwindow_get(JSContext *ctx,JSValue *th,int argc,JSValue *
 {
     (void)th;(void)argc;(void)argv;
     int b[4];qjs_draw_get_window(b);
-    JSValue array=JS_NewArray(ctx,4);
-    if(JS_IsException(array))return array;
-    for(unsigned i=0;i<4;i++)
-        if(JS_IsException(JS_SetPropertyUint32(ctx,array,i,JS_NewInt32(ctx,b[i]))))
+    JSGCRef array_ref;
+    JSValue *array=JS_PushGCRef(ctx,&array_ref);
+    *array=JS_NewArray(ctx,4);
+    if(JS_IsException(*array)){
+        JSValue exception=*array;
+        JS_PopGCRef(ctx,&array_ref);
+        return exception;
+    }
+    for(unsigned i=0;i<4;i++){
+        if(JS_IsException(JS_SetPropertyUint32(ctx,*array,i,JS_NewInt32(ctx,b[i])))){
+            JS_PopGCRef(ctx,&array_ref);
             return JS_EXCEPTION;
-    return array;
+        }
+    }
+    return JS_PopGCRef(ctx,&array_ref);
 }
 static JSValue js_gint_dpoly(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
@@ -281,20 +290,34 @@ static JSValue js_gint_C_RGB(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
    physical key codes, shift/alpha and time (like PythonExtra). */
 static JSValue js_event_object(JSContext *ctx,key_event_t e)
 {
-    JSValue obj=JS_NewObject(ctx);
-    if(JS_IsException(obj))return obj;
+    /* MQuickJS uses a MOVING GC. Every JS_NewString/JS_SetPropertyStr can
+       collect and relocate the result object. A C local JSValue is not a
+       root; the returned pointer from JS_PushGCRef is updated by the GC. */
+    JSGCRef event_ref;
+    JSValue *event=JS_PushGCRef(ctx,&event_ref);
+    *event=JS_NewObject(ctx);
+    if(JS_IsException(*event)){
+        JSValue exception=*event;
+        JS_PopGCRef(ctx,&event_ref);
+        return exception;
+    }
     const char *fields[]={"type","key","x","y","time"};
     int touch=e.type==KEYEV_TOUCH_DOWN || e.type==KEYEV_TOUCH_UP ||
               e.type==KEYEV_TOUCH_DRAG;
     int values[]={e.type,touch?0:e.key,touch?e.x:0,touch?e.y:0,e.time};
-    for(unsigned i=0;i<5;i++)
-        if(JS_IsException(JS_SetPropertyStr(ctx,obj,fields[i],
-                          JS_NewInt32(ctx,values[i]))))return JS_EXCEPTION;
-    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"shift",JS_NewBool(!touch&&e.shift)))||
-       JS_IsException(JS_SetPropertyStr(ctx,obj,"alpha",JS_NewBool(!touch&&e.alpha)))||
-       JS_IsException(JS_SetPropertyStr(ctx,obj,"mod",JS_NewBool(!touch&&e.mod))))
-        return JS_EXCEPTION;
-    return obj;
+    for(unsigned i=0;i<5;i++){
+        JSValue result=JS_SetPropertyStr(ctx,*event,fields[i],
+                                        JS_NewInt32(ctx,values[i]));
+        if(JS_IsException(result))goto fail;
+    }
+    if(JS_IsException(JS_SetPropertyStr(ctx,*event,"shift",JS_NewBool(!touch&&e.shift)))||
+       JS_IsException(JS_SetPropertyStr(ctx,*event,"alpha",JS_NewBool(!touch&&e.alpha)))||
+       JS_IsException(JS_SetPropertyStr(ctx,*event,"mod",JS_NewBool(!touch&&e.mod))))
+        goto fail;
+    return JS_PopGCRef(ctx,&event_ref);
+fail:
+    JS_PopGCRef(ctx,&event_ref);
+    return JS_EXCEPTION;
 }
 static JSValue js_gint_getkeyevent(JSContext *ctx,JSValue *th,int argc,JSValue *argv)
 {
@@ -378,13 +401,21 @@ static JSValue js_gint_image_rgb565(JSContext *ctx,JSValue *th,int argc,JSValue 
         if(JS_IsException(v)||JS_ToInt32(ctx,&pixel,v))return JS_EXCEPTION;
         if(qjs_image_set_pixel(id,i,(unsigned)pixel))return JS_EXCEPTION;
     }
-    JSValue obj=JS_NewObject(ctx);
-    if(JS_IsException(obj))return obj;
-    if(JS_IsException(JS_SetPropertyStr(ctx,obj,"id",JS_NewInt32(ctx,id)))||
-       JS_IsException(JS_SetPropertyStr(ctx,obj,"width",JS_NewInt32(ctx,w)))||
-       JS_IsException(JS_SetPropertyStr(ctx,obj,"height",JS_NewInt32(ctx,h))))
+    JSGCRef image_ref;
+    JSValue *obj=JS_PushGCRef(ctx,&image_ref);
+    *obj=JS_NewObject(ctx);
+    if(JS_IsException(*obj)){
+        JSValue exception=*obj;
+        JS_PopGCRef(ctx,&image_ref);
+        return exception;
+    }
+    if(JS_IsException(JS_SetPropertyStr(ctx,*obj,"id",JS_NewInt32(ctx,id)))||
+       JS_IsException(JS_SetPropertyStr(ctx,*obj,"width",JS_NewInt32(ctx,w)))||
+       JS_IsException(JS_SetPropertyStr(ctx,*obj,"height",JS_NewInt32(ctx,h)))){
+        JS_PopGCRef(ctx,&image_ref);
         return JS_EXCEPTION;
-    return obj;
+    }
+    return JS_PopGCRef(ctx,&image_ref);
 }
 static int image_arg(JSContext *ctx,int argc,JSValue *argv,int index,int *id)
 {

@@ -112,6 +112,9 @@ foreach(LOCALE IN ITEMS ja cn)
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/DEMO.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/DEMO.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/examples/GCROOT.JS"
+      "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/GCROOT.JS"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/examples/TOUCH.JS"
       "${CMAKE_BINARY_DIR}/packages/${LOCALE}/${EXWORD_APP_ID}/TOUCH.JS"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different

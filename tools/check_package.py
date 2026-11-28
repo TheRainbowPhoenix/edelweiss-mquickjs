@@ -26,6 +26,7 @@ for locale in ("ja", "cn"):
     assert (package / "DEMO.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "DEMO.JS").read_bytes()
     assert (package / "ARGS.JS").is_file()
     assert (package / "GFX.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "GFX.JS").read_bytes()
+    assert (package / "GCROOT.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "GCROOT.JS").read_bytes()
     assert (package / "TOUCH.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "TOUCH.JS").read_bytes()
     assert (package / "FLAGS.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "FLAGS.JS").read_bytes()
     assert (package / "TILES.JS").read_bytes() == (Path(__file__).resolve().parents[1] / "examples" / "TILES.JS").read_bytes()
