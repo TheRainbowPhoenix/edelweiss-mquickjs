@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: TheRainbowPhoenix/Edelweiss
-          ref: ${{ inputs.edelweiss_ref || '4e411ee52edd8f564ffb1647f1b95e1c9fc7db04' }}
+          ref: ${{ inputs.edelweiss_ref || '7d09dd778a59d35cb68643948149d4f299293c21' }}
           path: dependencies/edelweiss
       - uses: actions/checkout@v4
         with:
