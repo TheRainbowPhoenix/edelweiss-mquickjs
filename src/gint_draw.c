@@ -1,5 +1,11 @@
 #include "gint_draw.h"
 #include <stdint.h>
+#if defined(__sh__)
+/* Hosted gint's native VRAM routines. Available as EDL imports (no
+   second gint runtime). Shallow integer argument ABI, no JS allocation. */
+extern void dpixel(int x,int y,int color);
+extern void dline(int x1,int y1,int x2,int y2,int color);
+#endif
 
 /* The resident provides filled rectangles, text and display refresh.
    Keep this purely software renderer independent from gint's private VRAM:
@@ -49,7 +55,19 @@ void qjs_draw_rect(int x1,int y1,int x2,int y2,int color)
     if(y1>y2){int t=y1;y1=y2;y2=t;}
     native_rect(x1,y1,x2,y2,color);
 }
-void qjs_draw_pixel(int x,int y,int color){native_rect(x,y,x,y,color);}
+void qjs_draw_pixel(int x,int y,int color)
+{
+    if(color<0)return;
+#if defined(__sh__)
+    /* Avoid a heavyweight hosted rectangle callback per touched pixel.
+       Only use direct VRAM when the point lies in our logical clip. */
+    if(display && x>=left && x<right && y>=top && y<bottom){
+        dpixel(x,y,color);
+        return;
+    }
+#endif
+    native_rect(x,y,x,y,color);
+}
 void qjs_draw_hline(int y,int color)
 {
     if(display)native_rect(0,y,(int)display->width-1,y,color);
@@ -61,6 +79,17 @@ void qjs_draw_vline(int x,int color)
 void qjs_draw_line(int x1,int y1,int x2,int y2,int color)
 {
     if(color<0)return;
+#if defined(__sh__)
+    /* For endpoints inside the software clip the entire Bresenham path
+       also stays inside it. Resident dline writes to VRAM directly,
+       avoiding O(length) EDL -> Toybox rectangle callbacks. Outsiders
+       retain the original clipped software path. */
+    if(display && x1>=left && x1<right && y1>=top && y1<bottom &&
+       x2>=left && x2<right && y2>=top && y2<bottom){
+        dline(x1,y1,x2,y2,color);
+        return;
+    }
+#endif
     if(x1==x2){native_rect(x1,min_i(y1,y2),x1,max_i(y1,y2),color);return;}
     if(y1==y2){native_rect(min_i(x1,x2),y1,max_i(x1,x2),y1,color);return;}
     /* JS coordinate inputs are bounded to +/-4096, so Bresenham is safe. */
