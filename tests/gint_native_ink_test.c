@@ -12,13 +12,13 @@ static void rect(int x,int y,int w,int h,uint16_t c)
     host_rects++;
 }
 /* When built with -D__sh__ these stubs stand in for hosted gint imports. */
-void dpixel(int x,int y,int c)
+void edl_native_dpixel(int x,int y,int c)
 {
     (void)c;
     assert(x>=0 && x<32 && y>=0 && y<24);
     native_pixels++;
 }
-void dline(int x1,int y1,int x2,int y2,int c)
+void edl_native_dline(int x1,int y1,int x2,int y2,int c)
 {
     (void)c;
     assert(x1>=0 && x1<32 && x2>=0 && x2<32);
